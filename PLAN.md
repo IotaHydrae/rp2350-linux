@@ -38,6 +38,7 @@
 - 环境：`PICO_SDK_PATH=/home/developer/raspberrypi/pico-sdk`；已有 qemu-system-riscv32、picotool、riscv64-linux-gnu-gcc、dtc、cmake、ninja。
 - 缺：pico-sdk 的 RISC-V 裸机工具链（`riscv-none-elf-gcc`）→ S1 开工时联网安装（官方 riscv-toolchain）。
 - 烧录方式：S1 细化（picotool load 或 openocd rp2350-riscv）。
+- 工程模板惯例（参考 `/home/developer/iotahydrae/rpi-pico-lab/` 下的项目）：每个工程 `CMakeLists.txt + main.c + pico_sdk_import.cmake`；环境由 `tools/envsetup.sh` 设置（`PICO_SDK_PATH=$CWD/pico-sdk`）；调试烧录用 DAPLink + OpenOCD 脚本（rp2350-riscv 用 `rp2350-riscv.cfg`）。
 
 ## 变更记录（翻案纪律：改了当场记，写旧方案 + 为什么翻）
 
