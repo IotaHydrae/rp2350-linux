@@ -16,3 +16,11 @@ pico_enable_stdio_usb(psram-test 1)
 pico_enable_stdio_uart(psram-test 1)
 
 pico_add_extra_outputs(psram-test)
+
+add_executable(psram-test-sfe psram-test-sfe/main.c psram-test-sfe/sfe_psram.c)
+target_link_libraries(psram-test-sfe pico_stdlib hardware_spi)
+
+pico_enable_stdio_usb(psram-test-sfe 1)
+pico_enable_stdio_uart(psram-test-sfe 1)
+
+pico_add_extra_outputs(psram-test-sfe)
