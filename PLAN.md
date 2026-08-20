@@ -4,7 +4,7 @@
 
 ## 产品一句话
 
-把 Linux（RISC-V 32 位、无 MMU）移植到 Waveshare RP2350 Plus 16MB 的 RISC-V 核（Hazard3，RV32IMAC）上。从自写 bootloader 开始，终点：板子串口能进 Linux shell。
+把 Linux（RISC-V 32 位、无 MMU）移植到 Waveshare RP2350B-Plus-W 的 RISC-V 核（Hazard3，RV32IMAC）上。从自写 bootloader 开始，终点：板子串口能进 Linux shell。
 
 ## 剧本场景
 
@@ -20,7 +20,7 @@
 
 ## 关键事实与决策依据（数据手册原文在 `rp2350-datasheet.txt`）
 
-- PSRAM：QMI CS1，XIP 映射 `0x11000000`（手册 4.4）。
+- PSRAM：QMI CS1（片选 = GPIO47，用户查原理图确认），XIP 映射 `0x11000000`（手册 4.4）。
 - UART0：`0x40070000`，PL011 r1p5 → Linux 自带 pl011 驱动可用（手册 UART 章节）。
 - RISC-V 定时器：SIO 内标准 MTIME/MTIMECMP（手册 3.2）。
 - 中断控制器：XH3IRQ，52 条外部线、16 级抢占（手册 3.8.6.1）。
@@ -31,14 +31,17 @@
 
 - 内核版本：S2 时拍（要求 ≥ 6.3，rv32 nommu 支持合入的版本）。
 - PSRAM 片选脚：S1 确认（候选 GP0/8/19/47；pico-sdk `hardware_psram` 可自动探测）。
+- 板卡型号：Waveshare RP2350B-Plus-W（RP2350B 封装，16MB flash，8MB PSRAM，带 WiFi 模块——WiFi 后续阶段再说）。pico-sdk 无此板定义，自写 `boards/waveshare_rp2350b_plus_w.h`（`PICO_RP2350A 0` 选 B 版，参考 weact_studio_rp2350b_core）。
 - 串口引脚/波特率：沿用用户工程 UART0 GP16/17 @ 115200（与内核 console 保持一致）。
 
 ## 怎么跑（构建/部署级，随阶段补充）
 
 - 环境：`PICO_SDK_PATH=/home/developer/raspberrypi/pico-sdk`；已有 qemu-system-riscv32、picotool、riscv64-linux-gnu-gcc、dtc、cmake、ninja。
 - 缺：pico-sdk 的 RISC-V 裸机工具链（`riscv-none-elf-gcc`）→ S1 开工时联网安装（官方 riscv-toolchain）。
+- 工具链手动安装（用户下载）：`https://github.com/raspberrypi/pico-sdk-tools/releases/download/v2.0.0-5/riscv-toolchain-14-x86_64-lin.tar.gz`，解压后 `PICO_TOOLCHAIN_PATH` 指到含 `bin/` 的目录。
 - 烧录方式：S1 细化（picotool load 或 openocd rp2350-riscv）。
 - 工程模板惯例（参考 `/home/developer/iotahydrae/rpi-pico-lab/` 下的项目）：每个工程 `CMakeLists.txt + main.c + pico_sdk_import.cmake`；环境由 `tools/envsetup.sh` 设置（`PICO_SDK_PATH=$CWD/pico-sdk`）；调试烧录用 DAPLink + OpenOCD 脚本（rp2350-riscv 用 `rp2350-riscv.cfg`）。
+- S1 第一个产物：`psram-test` target（独立测试程序，先于 bootloader）；bootloader 作为第二个 target 加入同一工程。
 
 ## 变更记录（翻案纪律：改了当场记，写旧方案 + 为什么翻）
 
