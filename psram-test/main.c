@@ -18,6 +18,27 @@
 
 static uint32_t failures = 0;
 
+// --- 异常报告器 ---
+// crt0 里机器异常入口是弱符号，默认实现 = 静默睡死（等调试器）。
+// 我们接管它，把死因打印出来：mcause = 异常类型，mepc = 出事指令，
+// mtval = 访问 fault 时被访问的地址。
+// 必须放 RAM（.time_critical）：向量表在 SRAM，JAL 跳转范围只有 ±1MB，
+// 放 flash 会链接失败（relocation truncated to fit）。
+void __not_in_flash_func(isr_riscv_machine_exception)(void) {
+    uint32_t mcause, mepc, mtval;
+    __asm__ volatile("csrr %0, 0x342" : "=r"(mcause)); // MCAUSE
+    __asm__ volatile("csrr %0, 0x341" : "=r"(mepc));   // MEPC
+    __asm__ volatile("csrr %0, 0x343" : "=r"(mtval));  // MTVAL
+
+    printf("\n*** MACHINE EXCEPTION ***\n");
+    printf("mcause = 0x%08lx (低12位: 5=load访问fault, 7=store/AMO访问fault)\n",
+           (unsigned long)mcause);
+    printf("mepc   = 0x%08lx (出事的指令地址)\n", (unsigned long)mepc);
+    printf("mtval  = 0x%08lx (被访问的地址)\n", (unsigned long)mtval);
+
+    while (true) tight_loop_contents();
+}
+
 static void test_region(uint32_t offset, uint32_t length, uint32_t seed) {
     volatile uint32_t *base = (volatile uint32_t *)(PSRAM_BASE + offset);
     uint32_t words = length / 4;
