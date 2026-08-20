@@ -1,0 +1,72 @@
+/*
+ * psram-test: prove that the 8MB PSRAM at 0x11000000 is alive.
+ *
+ * Steps:
+ *   1. clock + UART (eyes for debugging)
+ *   2. PSRAM init: done automatically by pico-sdk hardware_psram at
+ *      runtime init (board header: CS1 = GPIO47, size 8MB, auto-detect size)
+ *   3. print availability + size (size comes from reading the chip ID)
+ *   4. write/read self-test on the 0x11000000 region
+ */
+#include <stdio.h>
+#include "pico/stdlib.h"
+#include "hardware/clocks.h"
+#include "hardware/vreg.h"
+#include "hardware/psram.h"
+
+#define PSRAM_BASE 0x11000000u
+
+static uint32_t failures = 0;
+
+static void test_region(uint32_t offset, uint32_t length, uint32_t seed) {
+    volatile uint32_t *base = (volatile uint32_t *)(PSRAM_BASE + offset);
+    uint32_t words = length / 4;
+
+    for (uint32_t i = 0; i < words; i++) {
+        base[i] = seed + i;
+    }
+
+    for (uint32_t i = 0; i < words; i++) {
+        if (base[i] != seed + i) {
+            printf("  MISMATCH @ 0x%08x: wrote 0x%08x, read 0x%08x\n",
+                   (unsigned)(PSRAM_BASE + offset + i * 4),
+                   (unsigned)(seed + i), (unsigned)base[i]);
+            failures++;
+            if (failures >= 10) return;
+        }
+    }
+}
+
+int main(void) {
+    vreg_set_voltage(VREG_VOLTAGE_DEFAULT);
+    set_sys_clock_khz(150 * 1000, true); // datasheet nominal, no overclock
+
+    stdio_uart_init_full(uart0, 115200, 16, 17);
+
+    printf("\n=== psram-test ===\n");
+    printf("sys clock: %lu Hz\n", (unsigned long)clock_get_hz(clk_sys));
+
+    size_t psram_size = psram_get_size();
+    printf("psram_is_available: %d\n", psram_is_available());
+    printf("psram size: %u bytes (0x%08x)\n",
+           (unsigned)psram_size, (unsigned)psram_size);
+
+    if (!psram_is_available() || psram_size == 0) {
+        printf("PSRAM not found - check CS pin / wiring!\n");
+        while (true) tight_loop_contents();
+    }
+
+    printf("write/read self-test on PSRAM...\n");
+    test_region(0x000000, 4 * 1024, 0x11111111);               // start
+    test_region(psram_size / 2, 4 * 1024, 0x22222222);         // middle
+    test_region(psram_size - 4 * 1024, 4 * 1024, 0x33333333);  // end
+
+    if (failures == 0) {
+        printf("PASS: PSRAM is alive at 0x11000000\n");
+    } else {
+        printf("FAIL: %u mismatches\n", (unsigned)failures);
+    }
+
+    printf("done\n");
+    while (true) tight_loop_contents();
+}
