@@ -41,7 +41,8 @@ int main(void) {
     vreg_set_voltage(VREG_VOLTAGE_DEFAULT);
     set_sys_clock_khz(150 * 1000, true); // datasheet nominal, no overclock
 
-    stdio_uart_init_full(uart0, 115200, 16, 17);
+    // USB CDC + UART0 (GP16/17) 双路日志，Linux 接管前都用它看日志
+    stdio_init_all();
 
     printf("\n=== psram-test ===\n");
     printf("sys clock: %lu Hz\n", (unsigned long)clock_get_hz(clk_sys));
