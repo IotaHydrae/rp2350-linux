@@ -13,9 +13,10 @@
 ## Build, Test, and Development Commands
 
 - `make` — configure and build all Pico SDK targets (bootloader, fake-image, psram-test) for board `rp2350a_minimal`, RISC-V.
-- `make flash` — flash the bootloader UF2 (device in BOOTSEL mode).
-- `make flash-fake` — flash the fake image into partition 0: `picotool load -fv -p 0 build/fake-image.bin`.
-- `./s2/run-qemu.sh` — boot the riscv32 NOMMU kernel in QEMU (uses `s2/kernel-Image`).
+- `make flash-bootloader` (alias `make flash`) — flash the bootloader UF2 (device in BOOTSEL mode).
+- `make flash-fake` — flash the fake image into partition 0: `picotool load -fv -p 0 build/s1/fake-image.bin`.
+- `make flash-psram-test` / `make test` — flash and run the PSRAM self-test.
+- `make qemu` — boot the riscv32 NOMMU kernel in QEMU via `s2/run-qemu.sh`.
 - Kernel build: `cd /home/developer/linux-7.2 && make ARCH=riscv CROSS_COMPILE=riscv64-linux-gnu- O=build-rv32 ...` (full steps in `notes/环境搭建.md`).
 
 Note: after flashing firmware with an embedded partition table, reboot the device and re-enter BOOTSEL before `picotool -p`.
@@ -29,7 +30,7 @@ Note: after flashing firmware with an embedded partition table, reboot the devic
 
 ## Testing Guidelines
 
-- Hardware tests: flash `psram-test` (`make flash TARGET=psram-test`), observe USB/UART logs.
+- Hardware tests: flash `psram-test` (`make flash-psram-test`), observe USB/UART logs.
 - Kernel tests: `./s2/run-qemu.sh`; earlycon output is the primary check — a rootfs panic is an expected checkpoint until S4.
 - Record observed logs under `notes/实验日志/` after each run.
 

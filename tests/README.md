@@ -9,5 +9,5 @@
 烧录（BOOTSEL 模式下）：
 
 ```bash
-make flash TARGET=psram-test
+make flash-psram-test
 ```

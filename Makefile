@@ -1,15 +1,15 @@
 BUILD_DIR := build
-TARGET ?= bootloader
 BOARD ?= rp2350a_minimal
 TOOLCHAIN ?= /home/developer/toolchain
 PICO_SDK_PATH ?= /home/developer/raspberrypi/pico-sdk
+QEMU_SCRIPT := s2/run-qemu.sh
 
-.PHONY: all flash clean
+.PHONY: all clean qemu test flash flash-bootloader flash-fake flash-psram-test
 
 all: $(BUILD_DIR)/build.ninja
 	ninja -C $(BUILD_DIR)
 
-$(BUILD_DIR)/build.ninja: CMakeLists.txt Makefile | $(BUILD_DIR)
+$(BUILD_DIR)/build.ninja: CMakeLists.txt Makefile s1/CMakeLists.txt tests/CMakeLists.txt | $(BUILD_DIR)
 	cd $(BUILD_DIR) && \
 	PICO_TOOLCHAIN_PATH=$(TOOLCHAIN) \
 	cmake -DPICO_SDK_PATH=$(PICO_SDK_PATH) \
@@ -21,13 +21,26 @@ $(BUILD_DIR)/build.ninja: CMakeLists.txt Makefile | $(BUILD_DIR)
 $(BUILD_DIR):
 	mkdir -p $(BUILD_DIR)
 
-flash: all
-	picotool load -fu $(BUILD_DIR)/$(TARGET).uf2
+# ---- 烧录：每个例子一条命令（板子按住 BOOTSEL 插 USB）----
+flash-bootloader: all
+	picotool load -fu $(BUILD_DIR)/s1/bootloader.uf2
 
 flash-fake: all
-	# 分区表版：按分区 id 0（FAKE @ 64K）写入，不再手动算地址
-	# 注意：烧完含分区表的 bootloader 后，设备需重启再进 BOOTSEL，picotool 才能读到分区表
-	picotool load -fv -p 0 $(BUILD_DIR)/fake-image.bin
+	# 假镜像写入分区 0（FAKE @ 64K）；烧完带分区表固件后需重启再进 BOOTSEL
+	picotool load -fv -p 0 $(BUILD_DIR)/s1/fake-image.bin
+
+flash-psram-test: all
+	picotool load -fu $(BUILD_DIR)/tests/psram-test.uf2
+
+# 兼容旧习惯：flash = 烧 bootloader
+flash: flash-bootloader
+
+# ---- 测试 ----
+test: flash-psram-test
+	@echo "打开串口观察 psram-test 输出（预期 PASS）"
+
+qemu:
+	$(QEMU_SCRIPT)
 
 clean:
 	rm -rf $(BUILD_DIR)
