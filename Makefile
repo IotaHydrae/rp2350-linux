@@ -25,8 +25,8 @@ flash: all
 	picotool load -fu $(BUILD_DIR)/$(TARGET).uf2
 
 flash-fake: all
-	# -o 是绝对地址：flash 偏移 64KB 对应 XIP 地址 0x10010000
-	picotool load -fv -o 0x10010000 $(BUILD_DIR)/fake-image.bin
+	# 分区表版：按分区 id 0（FAKE @ 64K）写入，不再手动算地址
+	picotool load -fv -p 0 $(BUILD_DIR)/fake-image.bin
 
 clean:
 	rm -rf $(BUILD_DIR)

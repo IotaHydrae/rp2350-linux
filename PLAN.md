@@ -42,7 +42,8 @@
 - 工具链手动安装（用户下载）：`https://github.com/raspberrypi/pico-sdk-tools/releases/download/v2.0.0-5/riscv-toolchain-14-x86_64-lin.tar.gz`，解压后 `PICO_TOOLCHAIN_PATH` 指到含 `bin/` 的目录。
 - 烧录方式：S1 细化（picotool load 或 openocd rp2350-riscv）。
 - 工程模板惯例（参考 `/home/developer/iotahydrae/rpi-pico-lab/` 下的项目）：每个工程 `CMakeLists.txt + main.c + pico_sdk_import.cmake`；环境由 `tools/envsetup.sh` 设置（`PICO_SDK_PATH=$CWD/pico-sdk`）；调试烧录用 DAPLink + OpenOCD 脚本（rp2350-riscv 用 `rp2350-riscv.cfg`）。
-- S1 第一个产物：`psram-test` target（独立测试程序，在 `tests/` 下，先于 bootloader）；bootloader 作为第二个 target 加入同一工程。
+- 目录结构：`s1/partition-table/`（主线工程：bootloader 分区表版 + fake-image + partition_table.json）、`s1/fixed-offset/`（旧版固定偏移归档）、`tests/`（测试程序）、后续阶段 `s2/`、`s3/`… 依此类推；根 CMakeLists 统管 pico-sdk 构建。
+- S1 镜像存放：picobin 分区表（partition 0 = FAKE @ 64K，size 64K），烧录 `picotool load -p 0 fake-image.bin`；固定偏移版（`-o 0x10010000`）已归档。
 
 ## 变更记录（翻案纪律：改了当场记，写旧方案 + 为什么翻）
 

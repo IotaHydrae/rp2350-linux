@@ -103,7 +103,7 @@ ARM 的 `cmp r0, #5` + `beq`，RISC-V 写成 `li t0, 5` + `beq a0, t0, label`—
 
 ### 3.1 一个完整的函数：main_c（栈帧 + 调用 + 死循环）
 
-来源：`fake-image/main.c`（链接在 0x11000000 的裸机假镜像）。这是真实反汇编：
+来源：`s1/partition-table/fake-image/main.c`（链接在 0x11000000 的裸机假镜像）。这是真实反汇编：
 
 ```asm
 11000062 <main_c>:
@@ -155,7 +155,7 @@ sum_array:
 
 ### 3.3 字符串打印：uart_puts（外设轮询）
 
-来源：`fake-image/main.c`。逐字符发送，先等 UART 发送 FIFO 空再写：
+来源：`s1/partition-table/fake-image/main.c`。逐字符发送，先等 UART 发送 FIFO 空再写：
 
 ```asm
 11000008 <uart_puts>:
@@ -189,7 +189,7 @@ sum_array:
 
 ### 3.5 异常处理：csrr 三件套 + 清中断
 
-来源：`tests/psram-test/main.c` 的异常报告器、`bootloader/main.c` 的跳转前清理：
+来源：`tests/psram-test/main.c` 的异常报告器、`s1/partition-table/bootloader/main.c` 的跳转前清理：
 
 ```asm
 csrr	a0, 0x342    # 读 mcause（异常类型）
@@ -201,7 +201,7 @@ csrci	mstatus, 0x8 # 清 mstatus 的 bit3（MIE），关全局中断再跳转
 
 ### 3.6 函数指针跳转：bootloader 怎么跳过去
 
-来源：`bootloader/main.c` 的 `((image_entry_t)PSRAM_BASE)(0, NULL)`，编译器最终会生成类似：
+来源：`s1/partition-table/bootloader/main.c` 的 `((image_entry_t)PSRAM_BASE)(0, NULL)`，编译器最终会生成类似：
 
 ```asm
 li	a0, 0          # 参数1：hartid
@@ -261,7 +261,7 @@ sum_array:
 - 16 位指令地址必须 2 字节对齐（Hazard3 上「指令取指对齐异常不会发生」，因为 C 扩展开着）；
 - 看反汇编时 `c.` 前缀 = 这条只占 2 字节，地址每次 +2，别按 4 字节数。
 
-我们 fake-image 的 `_start` 就是个例子（真实反汇编）：
+我们 `s1/partition-table/fake-image` 的 `_start` 就是个例子（真实反汇编）：
 
 ```asm
 11000000 <_start>:
