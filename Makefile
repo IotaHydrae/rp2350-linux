@@ -1,6 +1,6 @@
 BUILD_DIR := build
 TARGET := psram-test
-BOARD := waveshare_rp2350b_plus_w
+BOARD ?= rp2350a_minimal
 TOOLCHAIN ?= /home/developer/toolchain
 PICO_SDK_PATH ?= /home/developer/raspberrypi/pico-sdk
 
@@ -9,7 +9,7 @@ PICO_SDK_PATH ?= /home/developer/raspberrypi/pico-sdk
 all: $(BUILD_DIR)/build.ninja
 	ninja -C $(BUILD_DIR)
 
-$(BUILD_DIR)/build.ninja: CMakeLists.txt | $(BUILD_DIR)
+$(BUILD_DIR)/build.ninja: CMakeLists.txt Makefile | $(BUILD_DIR)
 	cd $(BUILD_DIR) && \
 	PICO_TOOLCHAIN_PATH=$(TOOLCHAIN) \
 	cmake -DPICO_SDK_PATH=$(PICO_SDK_PATH) \

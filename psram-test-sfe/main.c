@@ -10,7 +10,11 @@
 #include "sfe_psram.h"
 
 #define PSRAM_BASE 0x11000000u
-#define SFE_PSRAM_CS_PIN 47 // Waveshare RP2350B-Plus-W: QMI CS1 = GPIO47
+
+#ifndef PICO_PSRAM_CS_PIN
+#error "board header must define PICO_PSRAM_CS_PIN"
+#endif
+#define SFE_PSRAM_CS_PIN PICO_PSRAM_CS_PIN // QMI CS1 引脚取自板卡头文件
 
 static uint32_t failures = 0;
 
@@ -66,8 +70,8 @@ int main(void) {
     printf("sys clock: %lu Hz\n", (unsigned long)clock_get_hz(clk_sys));
 
     size_t psram_size = sfe_setup_psram(SFE_PSRAM_CS_PIN);
-    printf("sfe_setup_psram(47) -> size: %u bytes (0x%08x)\n",
-           (unsigned)psram_size, (unsigned)psram_size);
+    printf("sfe_setup_psram(%d) -> size: %u bytes (0x%08x)\n",
+           SFE_PSRAM_CS_PIN, (unsigned)psram_size, (unsigned)psram_size);
 
     if (psram_size == 0) {
         printf("PSRAM not found - check CS pin / wiring!\n");

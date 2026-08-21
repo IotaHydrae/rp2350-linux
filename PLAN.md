@@ -31,7 +31,8 @@
 
 - 内核版本：S2 时拍（要求 ≥ 6.3，rv32 nommu 支持合入的版本）。
 - PSRAM 片选脚：S1 确认（候选 GP0/8/19/47；pico-sdk `hardware_psram` 可自动探测）。
-- 板卡型号：Waveshare RP2350B-Plus-W（RP2350B 封装，16MB flash，8MB PSRAM，带 WiFi 模块——WiFi 后续阶段再说）。pico-sdk 无此板定义，自写 `boards/waveshare_rp2350b_plus_w.h`（`PICO_RP2350A 0` 选 B 版，参考 weact_studio_rp2350b_core）。
+- 主力板：自研 RP2350A-Minimal（RP2350A 封装，16MB flash，8MB PSRAM，CS1 = GPIO0，已实测正常）。自写 `boards/rp2350a_minimal.h`。
+- 挂起板：Waveshare RP2350B-Plus-W（RP2350B，16MB flash，8MB PSRAM，CS1 = GPIO47）——两条驱动都能读 PSRAM ID 但写地址空间卡死，已换过 PSRAM 芯片仍复现，疑时序问题，等用户研究后再回来处理。配置保留在 `boards/waveshare_rp2350b_plus_w.h`。
 - 串口引脚/波特率：沿用用户工程 UART0 GP16/17 @ 115200（与内核 console 保持一致）。
 
 ## 怎么跑（构建/部署级，随阶段补充）
