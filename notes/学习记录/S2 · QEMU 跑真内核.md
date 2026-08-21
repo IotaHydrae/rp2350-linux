@@ -78,6 +78,32 @@ noMMU 特例：`KERNEL_LINK_ADDR = 0`（pgtable.h），偏移 = 运行时地址�
 
 工具习惯：`rg` 搜符号/字符串，`sed -n 'a,bp'` 看指定行段，`grep -n` 定位行号；内核源码已是 git 仓库，还能 `git log -S` / `git blame` 查演进。
 
+### 讲解记录：从 _start 到 start_kernel（riscv32 noMMU M-mode，2026-08-21）
+
+详细版（含源码逐段对照）见独立文档 `RISC-V内核启动详解-从start到start_kernel.md`。摘要：
+
+1. **Image 头部（64 字节，数据不是代码）**：`_start` 第一条指令是 `j _start_kernel`，跳过头部字段；头部是给 bootloader 读的（magic、load offset、镜像大小、版本）。M 模式的 load offset 是 0。
+2. **`_start_kernel`：关中断**——`csrw CSR_IE/CSR_IP, zero`（mie/mip 清零，屏蔽所有中断）。
+3. **M 模式特有准备**（没有固件替我们做）：
+   - `fence.i`：刷指令缓存；
+   - `call reset_regs`：清零除 ra/a0/a1 外的所有寄存器；
+   - **PMP**：`PMPADDR0=-1; PMPCFG0=NAPOT|R|W|X` 允许访问全部内存（并设临时 trap handler 跳过不支持 PMP 的机器）。
+4. **公共路径**：
+   - 取 hartid（M 模式 `csrr a0, mhartid`；S 模式直接用 a0 传入值）；
+   - `load_global_pointer`：PC 相对算出 gp（全局指针）；
+   - 关 FPU/向量（内核里用浮点 = bug，主动暴露）；
+   - （SMP 关，跳过 spinwait lottery 与 secondary 启动）
+   - **清 .bss**（`Clear BSS for flat non-ELF images` 循环）；
+   - 存 `boot_cpu_hartid`；
+   - **搭栈**：`tp = init_task; sp = init_thread_union + THREAD_SIZE`（内核第一个任务的栈）；
+   - **DTB**：`mv a0, a1`（无 CONFIG_BUILTIN_DTB 时，a1 来自 bootloader）；
+   - 临时 mtvec 指向 `.Lsecondary_park`（早期异常就停在这，便于调试）；
+   - noMMU：跳过 `setup_vm` / `relocate_enable_mmu`（MMU 内核才建页表）；
+   - `.Lsetup_trap_vector`：mtvec 设为真正的异常入口 `handle_exception`，mscratch 清零；
+   - `soc_early_init`（架构早期钩子）→ **`tail start_kernel`**（进 C 世界，不返回）。
+
+一句话：`_start` 只做「环境准备」——关中断、清寄存器、开 PMP 全权限、刷缓存、清 .bss、搭栈、拿 DTB 地址、设异常入口——然后全部交给 C 的 `start_kernel`。和 ARM 裸机 `_start → 初始化 → 跳 main` 同一个形状，多的是 RISC-V 特有的 PMP / fence.i / gp。
+
 ## DTB：硬件说明书从哪来
 
 QEMU 的 DTB 启动时动态生成，不在磁盘上（`-machine dumpdtb` 导出），经 a1 寄存器传给内核（OpenSBI 日志 `Domain0 Next Arg1: 0x87e00000` 是它在内存里的地址）。完整参考见 `QEMU-virt-DTB参考.md`。真板没有自动生成——S3 要照这个形状自己写一份，节点换成 RP2350 的。
