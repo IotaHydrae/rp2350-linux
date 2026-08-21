@@ -36,3 +36,10 @@ flowchart LR
 **关键机制**：vmlinux 是 ET_DYN（PIE），noMMU 下 `PAGE_OFFSET = phys_ram_base`——内核按实际运行地址自我重定位，加载地址（0x80400000）不是问题；问题是启动模式。
 
 **修法**：QEMU 加 `-bios none`，不用 OpenSBI，直接用 M 模式启动内核（noMMU 内核的标准跑法）。
+
+### 讲解记录：启动模式与内核加载（2026-08-21）
+
+- **为什么 OpenSBI 卡住**：QEMU virt 默认自带 OpenSBI 固件，它在 M 模式初始化后把内核切到 S 模式启动（`Domain0 Next Mode: S-mode`）；`CONFIG_RISCV_M_MODE=y` 的内核期待独占 M 模式，一执行特权指令就卡死。修法 `-bios none`（noMMU 内核的标准跑法）。
+- **为什么加载地址不是问题**：vmlinux 是 ET_DYN（PIE，位置无关）；noMMU 下 `PAGE_OFFSET = phys_ram_base`，内核启动时按**实际运行地址**自我重定位（虚拟地址 = 物理地址）。所以 QEMU 加载到 `0x80400000` 能跑；真板上加载到 PSRAM `0x11000000` 同理——注意 rv32 要求 4MB 对齐，`0x11000000` 满足。
+- **启动链解读（从日志看）**：earlycon（uart8250 @ 0x10000000，来自 DTB 的 stdout-path）→ DTB 提供 memory / clint / plic / uart 节点 → 8250 console 接管（`ttyS0`）→ 定时器 `clint@2000000`、中断 `plic@c000000` → 走到 rootfs panic（`root=/dev/vda` 但没磁盘——预期断点，S4 补 rootfs）。
+- **联跑现象**：完整日志见 `实验日志/2026-08-21_S2_QEMU首跑.md`。

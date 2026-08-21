@@ -9,3 +9,4 @@
 | `2026-08-21_psram-test_新板PASS.md` | 2026-08-21 | RP2350A-Minimal | psram-test 验收 PASS |
 | `2026-08-21_S1联跑闭环.md` | 2026-08-21 | RP2350A-Minimal | S1 假镜像闭环首次联跑 |
 | `2026-08-21_S1分区表版联跑.md` | 2026-08-21 | RP2350A-Minimal | S1 分区表版联跑 PASS |
+| `2026-08-21_S2_QEMU首跑.md` | 2026-08-21 | QEMU virt（rv32） | S2 内核 QEMU 启动（rootfs panic 为预期断点） |
