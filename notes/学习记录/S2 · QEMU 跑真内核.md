@@ -26,3 +26,13 @@ flowchart LR
 ## 要点段（要学透的部件验收后即时追加）
 
 -（空）
+
+## 撞墙记录：OpenSBI 之后没动静（2026-08-21）
+
+**现象**：QEMU 停在 OpenSBI 平台信息（`Domain0 Next Mode: S-mode`）之后，内核一个字没出。
+
+**分析**：QEMU virt 默认自带 OpenSBI 固件，OpenSBI 在 M 模式初始化后把内核切到 S 模式启动；而我们的内核是 `CONFIG_RISCV_M_MODE=y`，期待独占 M 模式，一上来执行特权指令就卡死。
+
+**关键机制**：vmlinux 是 ET_DYN（PIE），noMMU 下 `PAGE_OFFSET = phys_ram_base`——内核按实际运行地址自我重定位，加载地址（0x80400000）不是问题；问题是启动模式。
+
+**修法**：QEMU 加 `-bios none`，不用 OpenSBI，直接用 M 模式启动内核（noMMU 内核的标准跑法）。
