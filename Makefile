@@ -1,5 +1,5 @@
 BUILD_DIR := build
-TARGET := psram-test
+TARGET ?= bootloader
 BOARD ?= rp2350a_minimal
 TOOLCHAIN ?= /home/developer/toolchain
 PICO_SDK_PATH ?= /home/developer/raspberrypi/pico-sdk
@@ -23,6 +23,9 @@ $(BUILD_DIR):
 
 flash: all
 	picotool load -fu $(BUILD_DIR)/$(TARGET).uf2
+
+flash-fake: all
+	picotool load -fv -o 0x10000 $(BUILD_DIR)/fake-image.bin
 
 clean:
 	rm -rf $(BUILD_DIR)
