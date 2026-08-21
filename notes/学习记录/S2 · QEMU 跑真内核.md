@@ -19,7 +19,7 @@ flowchart LR
 ## 决策清单（做到对应部件时再拍，先只挂问题）
 
 - [x] 内核版本 → **linux 7.2**（用户拍板，kernel.org 下载源码）
-- [ ] 构建配置起点：`rv32_defconfig` 改 NOMMU，还是 `nommu_virt_defconfig` 改 RV32？（到「构建配置」时拍，我给候选）
+- [x] 构建配置起点 → **`nommu_virt_defconfig` + `s2/rv32-nommu.config`**（32 位 fragment + SMP 关）。理由：7.2 已无 `rv32_defconfig`，fragment 是正路；SMP 先关与真板一致。
 - [ ] DTB 来源：QEMU 外置 `-dtb` 还是内核内置？（到「启动」时拍）
 - [ ] 是否带 initramfs：先不带，能出字就够？（到「启动」时拍）
 

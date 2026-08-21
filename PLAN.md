@@ -38,6 +38,7 @@
 ## 怎么跑（构建/部署级，随阶段补充）
 
 - 环境：`PICO_SDK_PATH=/home/developer/raspberrypi/pico-sdk`；已有 qemu-system-riscv32、picotool、riscv64-linux-gnu-gcc、dtc、cmake、ninja。
+- 内核源码：`/home/developer/linux-7.2`（已建 git 仓库，初始提交 `ec140a4`；构建产物 `build-rv32/` 已加 .gitignore；后续移植改动按功能提交）。
 - 缺：pico-sdk 的 RISC-V 裸机工具链（`riscv-none-elf-gcc`）→ S1 开工时联网安装（官方 riscv-toolchain）。
 - 工具链手动安装（用户下载）：`https://github.com/raspberrypi/pico-sdk-tools/releases/download/v2.0.0-5/riscv-toolchain-14-x86_64-lin.tar.gz`，解压后 `PICO_TOOLCHAIN_PATH` 指到含 `bin/` 的目录。
 - 烧录方式：S1 细化（picotool load 或 openocd rp2350-riscv）。
