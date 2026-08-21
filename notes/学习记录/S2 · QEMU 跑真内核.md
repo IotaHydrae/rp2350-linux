@@ -42,6 +42,16 @@ S2 把「镜像交到内存」升级成了真内核：主线 Linux 7.2 编成 ri
 
 vmlinux 是 ET_DYN（PIE，位置无关）；noMMU 下 `PAGE_OFFSET = phys_ram_base`，内核启动时按**实际运行地址**自我重定位（虚拟地址 = 物理地址）。所以 QEMU 加载到 `0x80400000` 能跑；真板加载到 PSRAM `0x11000000` 同理——注意 rv32 要求 4MB 对齐，`0x11000000` 满足。
 
+### 岔路：内核自我重定位到底做了什么（2026-08-21 用户岔路）
+
+用户拿 ARM 裸机经验对比：链接地址 ≠ 加载地址时，要「拷 .data 到链接地址 → 清 .bss → 修所有绝对指针」。逐项对照内核实际代码：
+
+1. **拷 .data 这步被省掉**：内核用 `CONFIG_CMODEL_MEDANY`（PC 相对寻址）+ PIE 编译，代码/数据引用全是 PC 相对（auipc/addi），内核就在被加载的地方运行，`.data` 不用搬。noMMU 的 `PAGE_OFFSET = phys_ram_base` 让链接地址在运行时变成实际物理地址。
+2. **清 .bss 一模一样**：head.S `Clear BSS for flat non-ELF images` 循环（`__bss_start`/`__bss_stop`）。
+3. **修绝对指针按表执行**：`CONFIG_RELOCATABLE=y` 时链接器把所有绝对引用收进 `.rela.dyn`；启动早期 `relocate_kernel()`（arch/riscv/mm/init.c）遍历表，每个 `R_RISCV_RELATIVE` 项加上加载偏移。原理 = 修位置相关的东西，但由编译器生成表、内核按表机械执行，比手写搬段更通用。
+
+noMMU 特例：`KERNEL_LINK_ADDR = 0`（pgtable.h），偏移 = 运行时地址本身；不走 `relocate_enable_mmu`（那是 MMU 内核的页表重定位）。
+
 ## DTB：硬件说明书从哪来
 
 QEMU 的 DTB 启动时动态生成，不在磁盘上（`-machine dumpdtb` 导出），经 a1 寄存器传给内核（OpenSBI 日志 `Domain0 Next Arg1: 0x87e00000` 是它在内存里的地址）。完整参考见 `QEMU-virt-DTB参考.md`。真板没有自动生成——S3 要照这个形状自己写一份，节点换成 RP2350 的。
