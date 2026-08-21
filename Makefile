@@ -26,6 +26,7 @@ flash: all
 
 flash-fake: all
 	# 分区表版：按分区 id 0（FAKE @ 64K）写入，不再手动算地址
+	# 注意：烧完含分区表的 bootloader 后，设备需重启再进 BOOTSEL，picotool 才能读到分区表
 	picotool load -fv -p 0 $(BUILD_DIR)/fake-image.bin
 
 clean:
