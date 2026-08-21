@@ -52,6 +52,32 @@ vmlinux 是 ET_DYN（PIE，位置无关）；noMMU 下 `PAGE_OFFSET = phys_ram_b
 
 noMMU 特例：`KERNEL_LINK_ADDR = 0`（pgtable.h），偏移 = 运行时地址本身；不走 `relocate_enable_mmu`（那是 MMU 内核的页表重定位）。
 
+#### 🔍 分析过程与源文件索引（可复现）
+
+内核源码根：`/home/developer/linux-7.2`（已建 git 仓库，初始提交 `ec140a4`；构建目录 `build-rv32/`）。
+
+问题：noMMU 内核加载地址 ≠ 链接地址，为什么能跑？按下面顺序追，每一步都是「先问是什么 → 在哪个文件 → 看到什么」：
+
+1. **查构建配置**（内核形态由开关决定）
+   `grep -E "CONFIG_RELOCATABLE|CONFIG_CMODEL" build-rv32/.config`
+   → `CONFIG_CMODEL_MEDANY=y`（PC 相对寻址模型）、`CONFIG_RELOCATABLE=y`（noMMU 也开）。
+2. **查启动汇编**（早期做了什么）
+   `grep -n -i "relocat\|phys_ram_base\|clear_bss\|__bss" arch/riscv/kernel/head.S`
+   → `arch/riscv/kernel/head.S:273-280`：清 .bss 循环（`Clear BSS for flat non-ELF images`）；
+   → `head.S:300`：`relocate_enable_mmu` 在 `#ifdef CONFIG_MMU` 里，noMMU 不走（只有 MMU 内核要页表重定位）。
+3. **查重定位函数**（绝对指针谁修的）
+   `rg -n "rela_dyn|R_RISCV_RELATIVE" arch/riscv`
+   → `arch/riscv/mm/init.c:315` `relocate_kernel()`：遍历 `__rela_dyn_start..__rela_dyn_end`，每个 `R_RISCV_RELATIVE` 项加 `reloc_offset`；
+   → `arch/riscv/kernel/vmlinux.lds.S:106-108`：`__rela_dyn_start/end` 符号（这张表在镜像里的位置）。
+4. **查链接地址**（偏移怎么算）
+   `rg -n "KERNEL_LINK_ADDR" arch/riscv/include/asm/pgtable.h`
+   → `pgtable.h:16`：noMMU 分支 `UL(0)`（内核链接在 0）→ `reloc_offset = 运行时地址 - 0`。
+5. **查 PAGE_OFFSET**（noMMU 地址映射）
+   `arch/riscv/include/asm/page.h:37`：`!MMU` 分支 `PAGE_OFFSET = phys_ram_base`（虚拟地址 = 实际物理地址）。
+6. **结论**：代码 PC 相对（medany）→ 不用搬段；.bss 自己清；残留绝对指针由 `.rela.dyn` 表 + `relocate_kernel()` 修。
+
+工具习惯：`rg` 搜符号/字符串，`sed -n 'a,bp'` 看指定行段，`grep -n` 定位行号；内核源码已是 git 仓库，还能 `git log -S` / `git blame` 查演进。
+
 ## DTB：硬件说明书从哪来
 
 QEMU 的 DTB 启动时动态生成，不在磁盘上（`-machine dumpdtb` 导出），经 a1 寄存器传给内核（OpenSBI 日志 `Domain0 Next Arg1: 0x87e00000` 是它在内存里的地址）。完整参考见 `QEMU-virt-DTB参考.md`。真板没有自动生成——S3 要照这个形状自己写一份，节点换成 RP2350 的。
