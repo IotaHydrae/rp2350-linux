@@ -189,7 +189,7 @@ sum_array:
 
 ### 3.5 异常处理：csrr 三件套 + 清中断
 
-来源：`psram-test/main.c` 的异常报告器、`bootloader/main.c` 的跳转前清理：
+来源：`tests/psram-test/main.c` 的异常报告器、`bootloader/main.c` 的跳转前清理：
 
 ```asm
 csrr	a0, 0x342    # 读 mcause（异常类型）
@@ -297,7 +297,7 @@ sp  = 已初始化的栈
 ```
 
 ```asm
-# 异常处理里读三件套（psram-test 的异常报告器）
+# 异常处理里读三件套（tests/psram-test 的异常报告器）
 csrr a0, 0x342   # mcause
 csrr a1, 0x341   # mepc
 csrr a2, 0x343   # mtval

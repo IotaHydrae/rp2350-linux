@@ -33,7 +33,7 @@ RISC-V 机器异常发生时，硬件填好三个 CSR，然后跳到 mtvec 指�
 
 ```bash
 riscv32-unknown-elf-addr2line -e build/psram-test.elf -f -C 0x100000f4
-# 输出：test_region / psram-test/main.c:43
+# 输出：test_region / tests/psram-test/main.c:43
 ```
 
 ### 2.2 反汇编某一段
@@ -92,7 +92,7 @@ gdb-multiarch -batch \
 
 ## 5. 以后遇到类似问题，按这个顺序走
 
-1. 板子异常 → 先打印 mcause / mepc / mtval（异常报告器代码在 psram-test/main.c，可直接复制）。
+1. 板子异常 → 先打印 mcause / mepc / mtval（异常报告器代码在 tests/psram-test/main.c，可直接复制）。
 2. mepc → addr2line → objdump -d 附近。
 3. 反汇编结果可疑 → objdump -s 看字节 → 汇编器对答案 → gdb 第二意见。
 4. 还是对不上 → 怀疑硬件 / 时序 / 勘误，查数据手册对应章节，换板对照。

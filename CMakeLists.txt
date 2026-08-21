@@ -9,21 +9,13 @@ project(rp2350-linux)
 
 pico_sdk_init()
 
-add_executable(psram-test psram-test/main.c)
+add_executable(psram-test tests/psram-test/main.c)
 target_link_libraries(psram-test pico_stdlib hardware_psram)
 
 pico_enable_stdio_usb(psram-test 1)
 pico_enable_stdio_uart(psram-test 1)
 
 pico_add_extra_outputs(psram-test)
-
-add_executable(psram-test-sfe psram-test-sfe/main.c psram-test-sfe/sfe_psram.c)
-target_link_libraries(psram-test-sfe pico_stdlib hardware_spi)
-
-pico_enable_stdio_usb(psram-test-sfe 1)
-pico_enable_stdio_uart(psram-test-sfe 1)
-
-pico_add_extra_outputs(psram-test-sfe)
 
 # --- fake-image: 裸机假镜像，链接到 PSRAM 0x11000000，无 SDK ---
 add_executable(fake-image fake-image/start.S fake-image/main.c)
