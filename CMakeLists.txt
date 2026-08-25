@@ -12,3 +12,4 @@ pico_sdk_init()
 # 每个目录自己管理构建目标：
 add_subdirectory(s1)      # S1 主线：bootloader + fake-image
 add_subdirectory(tests)   # 测试程序
+add_subdirectory(s3/00_earlycon)  # S3-00：真内核加载 + earlycon 最小 DTB

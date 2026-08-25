@@ -1,0 +1,53 @@
+// SPDX-License-Identifier: GPL-2.0
+/*
+ * RP2350A SoC 级设备树（工程按需增量，不一次性堆全）。
+ *
+ * 00_earlycon 只放：cpus（timebase-frequency + riscv,cpu-intc，不 panic 的前提）
+ *                + serial（PL011，先不给 clocks/interrupts——probe 会失败，
+ *                  日志仍走 earlycon，正好当证据）。
+ * timer / XH3IRQ / clocks 由后续工程按需添加。
+ */
+/dts-v1/;
+
+/ {
+	#address-cells = <1>;
+	#size-cells = <1>;
+
+	cpus {
+		#address-cells = <1>;
+		#size-cells = <0>;
+		/* MTIME 由 pico-sdk tick 生成器驱动：clk_ref 12MHz / 12 = 1MHz */
+		timebase-frequency = <1000000>;
+
+		cpu@0 {
+			device_type = "cpu";
+			reg = <0>;
+			compatible = "riscv";
+			riscv,isa-base = "rv32i";
+			riscv,isa-extensions = "i", "m", "a", "c", "zicsr",
+						 "zifencei", "zba", "zbb", "zbs",
+						 "zbkb", "zca", "zcb", "zcmp";
+			riscv,isa = "rv32imac_zicsr_zifencei_zba_zbb_zbs_zbkb_zca_zcb_zcmp";
+
+			interrupt-controller {
+				#interrupt-cells = <1>;
+				interrupt-controller;
+				compatible = "riscv,cpu-intc";
+			};
+		};
+	};
+
+	soc {
+		#address-cells = <1>;
+		#size-cells = <1>;
+		compatible = "simple-bus";
+		ranges;
+
+		serial@40070000 {
+			compatible = "arm,pl011";
+			reg = <0x40070000 0x1000>;
+			/* 00_earlycon：不加 clocks/interrupts，pl011 真驱动 probe 失败，
+			 * earlycon 不受影响（显式地址轮询写寄存器）。 */
+		};
+	};
+};
