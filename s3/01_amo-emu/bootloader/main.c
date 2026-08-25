@@ -15,6 +15,7 @@
 #include "hardware/psram.h"
 #include "hardware/xip_cache.h"
 #include "hardware/regs/addressmap.h"
+#include "hardware/structs/xip.h"
 
 #define KERNEL_LOAD_ADDR 0x11000000u
 #define DTB_LOAD_ADDR    0x11700000u
@@ -83,6 +84,13 @@ int main(void) {
     printf("\n=== s3-00 earlycon bootloader ===\n");
     printf("PSRAM available: %d, size: %u\n",
            psram_is_available(), (unsigned)psram_get_size());
+
+    /* 显式开启 PSRAM 写使能（WRITABLE_M1）：XIP 内存默认只读，
+     * 未置位时缓存写会"看似成功、驱逐时丢失"。打印当前值便于确认。 */
+    hw_set_bits(&xip_ctrl_hw->ctrl, XIP_CTRL_WRITABLE_M1_BITS);
+    printf("XIP_CTRL=0x%08lx (WRITABLE_M1=%lu)\n",
+           (unsigned long)xip_ctrl_hw->ctrl,
+           (unsigned long)((xip_ctrl_hw->ctrl & XIP_CTRL_WRITABLE_M1_BITS) ? 1 : 0));
 
     uint32_t kernel_flash, kernel_size, dtb_flash, dtb_size;
     if (!find_partition(0, &kernel_flash, &kernel_size) ||
