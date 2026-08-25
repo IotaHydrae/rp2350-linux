@@ -118,6 +118,7 @@ int main(void) {
     printf("disable irqs, jump to 0x%08x (a0=0 hartid, a1=0x%08x dtb)\n",
            (unsigned)KERNEL_LOAD_ADDR, (unsigned)DTB_LOAD_ADDR);
     __asm__ volatile("csrci mstatus, 0x8"); // 清 MIE，避免中断干扰内核启动
+    __asm__ volatile("csrw 0x340, zero");   // 清 mscratch：内核异常入口靠 mscratch=0 判定内核态
     ((image_entry_t)KERNEL_LOAD_ADDR)(0, (void *)DTB_LOAD_ADDR);
 
     printf("should never reach here\n");
