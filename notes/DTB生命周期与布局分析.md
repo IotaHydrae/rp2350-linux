@@ -117,8 +117,43 @@ bootloader 在 flash 上 XIP 执行、跳转后就死了；主 SRAM 512KB、XIP_
 
 RP2350 的 AMO / lr-sc 原子操作只支持 SRAM，PSRAM 上触发 Store/AMO Fault（手册 MCAUSE CODE 7，见 PLAN.md 硬件墙）。以后内核跑到自旋锁/原子变量可能撞墙，届时 SRAM 是「放需要原子操作的数据」的候选地（S4/S5 的事）。
 
+## 启动代码在 PSRAM 上执行有没有问题（S3 知识储备）
+
+### 结论
+
+`_start` → `start_kernel` 之前的启动代码在 PSRAM 上执行**没有原则性的正确性问题**；确定的代价只是慢。真正会咬人的 AMO 墙在 start_kernel 之后。
+
+### 为什么没问题：两个硬件事实
+
+1. **XIP 缓存对同一 hart 自洽**：RP2350 的 XIP 缓存是写回缓存（行状态含 Dirty），但对同一个 hart 自己的写 → 读/取指是自洽的——脏行会服务自己的后续访问。手册原话：「正常操作软件不需要考虑缓存一致性，除非做 flash 编程」（4.4.1）。bootloader 把内核写进 PSRAM、再跳到 PSRAM 取指，同一个 hart，缓存自己兜得住。
+2. **fence.i 不管缓存也够用**：Hazard3 没有 store buffer，假设顺序一致，`fence` 是 NOP；`fence.i` 只清 BTB + 跳 pc+4 清预取缓冲（手册 3.8.1.21），不 flush XIP 缓存——但恰好不需要。
+
+### 启动代码在 PSRAM 上具体干了什么（对照 head.S:210）
+
+- 关中断、`fence.i`、`reset_regs`、PMP 设置——全是核内 CSR 操作，跟内存介质无关。
+- 清 .bss——写 PSRAM，走缓存窗口，同 hart 自洽。
+- 搭栈——sp 指向内核镜像里的 `init_thread_union`（PSRAM），慢但正确。
+- mtvec 指向 `.Lsecondary_park`（PSRAM 地址）——执行来自 PSRAM 没问题。
+- 全程没有 AMO/lr-sc，所以「PSRAM 不支持原子操作」这堵墙在 start_kernel 之前不会撞上。
+
+### 两个交接边界（真正要小心的）
+
+1. **拷贝路径与缓存状态一致**：S1 验证过的模式（缓存窗口写 → 读回校验 → 跳转）是安全模式。别改成 DMA 或 uncached 窗口写完直接跳——虽然启动时 bootrom 已把所有缓存行 invalid 过一遍，风险很低，但读回校验是免费兜底。反过来，如果拷贝走缓存窗口，跳转前**不要**做 invalidate（会把还没写回的脏数据丢掉）。
+2. **性能**：每条指令取指都过 QMI，启动比 SRAM 慢不少，单次成本；QMI 时钟由 bootloader 配置（S1 已验证）。
+
+### 交接卫生
+
+中断已关（S1 的 disable irqs）；看门狗如果用了要在跳转前停（pico-sdk 默认不开）；PSRAM 保持 bootloader 初始化好的状态，内核早期不碰 QMI。
+
+### start_kernel 之后的墙（预告）
+
+- 第一个自旋锁触发 AMO（ticket spinlock）→ PSRAM 上 Store/AMO Fault——S3/S4 要亲手撞的墙（PLAN.md 硬件墙）。
+- 文本补丁（alternatives）写 PSRAM 走缓存窗口、同 hart 自洽，大概率没事，但值得观察。
+
 ## 参考
 
 - `arch/riscv/kernel/setup.c`（parse_dtb / setup_arch / unflatten_device_tree）
 - `arch/riscv/mm/init.c`（setup_bootmem / paging_init / memblock_reserve）
+- `arch/riscv/kernel/head.S`（_start_kernel：关中断 / fence.i / reset_regs / PMP / 清 bss / 搭栈）
+- `rp2350-datasheet.txt` 4.4.1（XIP 缓存写回、同 hart 自洽）、3.8.1.21（fence.i 只清 BTB/预取缓冲）
 - `notes/QEMU-virt-DTB参考.md`（S3 最小 DTB 的形状来源）
