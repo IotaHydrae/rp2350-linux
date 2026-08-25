@@ -2,10 +2,12 @@
 /*
  * RP2350A SoC 级设备树（工程按需增量，不一次性堆全）。
  *
- * 00_earlycon 只放：cpus（timebase-frequency + riscv,cpu-intc，不 panic 的前提）
- *                + serial（PL011，先不给 clocks/interrupts——probe 会失败，
- *                  日志仍走 earlycon，正好当证据）。
- * timer / XH3IRQ / clocks 由后续工程按需添加。
+ * 00_earlycon 故意只给能出 earlycon 的最少内容，并**故意去掉**：
+ *   - /cpus 的 timebase-frequency
+ *   - cpu@0 的 riscv,cpu-intc（CPU 本地中断控制器）
+ * 目的：让内核在启动早期 panic（init_IRQ: "No interrupt controller found."），
+ * 本工程验收 = earlycon 出字 + 亲眼看到 panic；修复放到后续工程。
+ * serial（PL011）先不给 clocks/interrupts——probe 会失败，日志仍走 earlycon。
  */
 /dts-v1/;
 
@@ -16,8 +18,6 @@
 	cpus {
 		#address-cells = <1>;
 		#size-cells = <0>;
-		/* MTIME 由 pico-sdk tick 生成器驱动：clk_ref 12MHz / 12 = 1MHz */
-		timebase-frequency = <1000000>;
 
 		cpu@0 {
 			device_type = "cpu";
@@ -29,11 +29,6 @@
 						 "zbkb", "zca", "zcb", "zcmp";
 			riscv,isa = "rv32imac_zicsr_zifencei_zba_zbb_zbs_zbkb_zca_zcb_zcmp";
 
-			interrupt-controller {
-				#interrupt-cells = <1>;
-				interrupt-controller;
-				compatible = "riscv,cpu-intc";
-			};
 		};
 	};
 

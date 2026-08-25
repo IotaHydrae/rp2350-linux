@@ -10,7 +10,7 @@
 
 - 烧录：电脑编译 bootloader + 镜像，用 picotool / openocd 烧进 16MB flash。
 - 上电：bootloader 初始化 PSRAM → 把镜像从 flash 拷到 `0x11000000` → 跳转 → 串口看到每步日志。
-- 里程碑：S1 假镜像链路 → S3-00 真内核在板子串口打出第一行字（挂在 jiffies 冻结点）→ S3-01 timer+irq → S3-02 真 console → 进 shell。
+- 里程碑：S1 假镜像链路 → S3-00 真内核在板子串口打出第一行字并**故意看到 panic**（init_IRQ "No interrupt controller found."）→ S3-01 过 panic + timer/irq → S3-02 真 console → 进 shell。
 
 ## 形状与分工（已拍）
 
