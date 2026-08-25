@@ -45,7 +45,8 @@ flash-s3-00-bootloader: all
 flash-s3-00-kernel: all
 	# 内核写入分区 0（KERNEL @ 64K，3MB）；烧完 bootloader 后需重启再进 BOOTSEL
 	# -t bin 必须放在 -p 之后（picotool 解析器见到 -t 后不再接受 -p）
-	picotool load -fv -p 0 -t bin s2/kernel-Image
+	# 用工程内副本：重新构建内核后执行 cp s2/kernel-Image s3/00_earlycon/kernel-Image
+	picotool load -fv -p 0 -t bin s3/00_earlycon/kernel-Image
 
 flash-s3-00-dtb: $(BUILD_DIR)/s3/00_earlycon/rp2350a-minimal.dtb
 	# DTB 写入分区 1（DTB @ 3MB+64K）
