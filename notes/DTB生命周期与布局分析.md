@@ -150,10 +150,50 @@ RP2350 的 AMO / lr-sc 原子操作只支持 SRAM，PSRAM 上触发 Store/AMO Fa
 - 第一个自旋锁触发 AMO（ticket spinlock）→ PSRAM 上 Store/AMO Fault——S3/S4 要亲手撞的墙（PLAN.md 硬件墙）。
 - 文本补丁（alternatives）写 PSRAM 走缓存窗口、同 hart 自洽，大概率没事，但值得观察。
 
+## earlycon 机制：S3 出字的关键（知识储备）
+
+### 问题
+
+bootloader 跳转内核后要看日志，需要在 cmdline 里设 `earlycon=pl011,...`；earlycon 在哪解析、怎么打印、没有 `console=ttyX` 会怎样？
+
+### cmdline 形式
+
+`earlycon=pl011,mmio32,0x40070000,115200n8`，放 DTB `chosen/bootargs`（裸 `earlycon` 走 stdout-path，显式写地址更可控）。`mmio32` 让 pl011 earlycon 用 32 位寄存器访问（amba-pl011.c:2818）。
+
+### 解析链（在哪被解析）
+
+1. `early_param("earlycon", param_setup_earlycon)`（earlycon.c:249）——所有 early_param 由 `parse_early_param()` 触发，在 `setup_arch()` 里、`early_ioremap_setup()` 之后。
+2. `setup_earlycon()` 拿名字匹配 `__earlycon_table`（链接器收集的 EARLYCON_DECLARE 表）；pl011 条目 `OF_EARLYCON_DECLARE(pl011, "arm,pl011", pl011_early_console_setup)`（amba-pl011.c:2843）。
+3. `register_earlycon()`：解析 io 类型/地址/波特率 → `earlycon_map(addr, 64)` → setup 把 write 钩子设为 `pl011_early_write` → `register_console()`。
+4. 地址映射：noMMU 的 `ioremap` 是恒等映射（asm-generic/io.h NOMMU 分支直接返回物理地址）→ 直接读写 0x40070000，不涉及页表。本构建 `CONFIG_FIX_EARLYCON_MEM` 未开，走 ioremap。
+
+### 打印链（怎么打印）
+
+- earlycon 注册成标准 console：名字固定 `pl011`，flags = `CON_PRINTBUFFER | CON_BOOT`（earlycon.c:31）。
+- printk 路径：环形缓冲 → `console_unlock()` → 遍历 console 列表 → 逐个 `write`。
+- write = `pl011_early_write` → 逐字符 `pl011_putc`：轮询 TXFF → 写 `UART01x_DR` → 轮询 BUSY（amba-pl011.c:2760）。纯轮询、不依赖中断，所以早启动可用。
+- `CON_PRINTBUFFER`：注册时回放日志缓冲，所以比 earlycon 更早的 "Linux version" banner 也会补打出来（S2 日志 0.000000 时刻可见）。
+
+### 没有 console=ttyX 会怎样
+
+- earlycon 是 boot console（CON_BOOT）。printk.c 规则：一旦注册真 console，所有 boot console 自动注销；真 console 注册后 boot console 再注册被拒（printk.c:4051 注释 + 代码）。
+- pl011 真 console（ttyAMA0）在驱动 **probe 成功**时注册（`uart_add_one_port` → `register_console`）；probe 需要 serial 节点 + **时钟**（`pl011_probe` 里 `devm_clk_get` 失败直接返回错误，amba-pl011.c:3039）。
+- 情况 A：serial 节点 + clocks 齐 → 真 console 注册（无 console= 也走 `try_enable_default_console`）→ earlycon 自动注销，日志由 ttyAMA0 接管。
+- 情况 B：probe 失败 → 没有真 console → earlycon 常驻，日志一直从 earlycon 出。
+- 证据：S2 QEMU 日志三行——`bootconsole [uart8250] enabled` → `ttyS0 ... enabled` → `bootconsole [uart8250] disabled`。另有 `keep_bootcon` 可强制保留。
+
+### S3 两个观察点
+
+1. 第一级：只要 `earlycon=...` 就能出字（纯轮询寄存器，不依赖驱动）。
+2. 第二级：`console=ttyAMA0` 真 console 接管，需要 serial 节点 + clocks（fixed-clock），日志出现 `ttyAMA0 enabled` + `bootconsole disabled`。建议 cmdline 两个参数都带。
+
 ## 参考
 
 - `arch/riscv/kernel/setup.c`（parse_dtb / setup_arch / unflatten_device_tree）
 - `arch/riscv/mm/init.c`（setup_bootmem / paging_init / memblock_reserve）
 - `arch/riscv/kernel/head.S`（_start_kernel：关中断 / fence.i / reset_regs / PMP / 清 bss / 搭栈）
+- `drivers/tty/serial/earlycon.c`（early_param / setup_earlycon / register_earlycon / earlycon_map）
+- `drivers/tty/serial/amba-pl011.c`（OF_EARLYCON_DECLARE / pl011_early_write / pl011_probe 时钟要求）
+- `kernel/printk/printk.c`（register_console：boot console 注销规则 / try_enable_default_console）
 - `rp2350-datasheet.txt` 4.4.1（XIP 缓存写回、同 hart 自洽）、3.8.1.21（fence.i 只清 BTB/预取缓冲）
 - `notes/QEMU-virt-DTB参考.md`（S3 最小 DTB 的形状来源）
