@@ -54,7 +54,7 @@ noMMU 特例：`KERNEL_LINK_ADDR = 0`（pgtable.h），偏移 = 运行时地址�
 
 #### 🔍 分析过程与源文件索引（可复现）
 
-内核源码根：`/home/developer/linux-7.2`（已建 git 仓库，初始提交 `ec140a4`；构建目录 `build-rv32/`）。
+内核源码根：`/home/developer/linux-7.2`（已建 git 仓库，初始提交 `f94a4e629`；构建目录 `build-rv32/`）。
 
 问题：noMMU 内核加载地址 ≠ 链接地址，为什么能跑？按下面顺序追，每一步都是「先问是什么 → 在哪个文件 → 看到什么」：
 
