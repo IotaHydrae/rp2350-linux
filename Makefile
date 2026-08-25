@@ -39,12 +39,12 @@ flash-s3-00-bootloader: all
 
 flash-s3-00-kernel: all
 	# 内核写入分区 0（KERNEL @ 64K，3MB）；烧完 bootloader 后需重启再进 BOOTSEL
-	# -t bin：Image 无扩展名，picotool 靠扩展名猜类型会报错
-	picotool load -fv -t bin -p 0 s2/kernel-Image
+	# -t bin 必须放在 -p 之后（picotool 解析器见到 -t 后不再接受 -p）
+	picotool load -fv -p 0 -t bin s2/kernel-Image
 
 flash-s3-00-dtb: $(BUILD_DIR)/s3/00_earlycon/rp2350a-minimal.dtb
 	# DTB 写入分区 1（DTB @ 3MB+64K）
-	picotool load -fv -t bin -p 1 $(BUILD_DIR)/s3/00_earlycon/rp2350a-minimal.dtb
+	picotool load -fv -p 1 -t bin $(BUILD_DIR)/s3/00_earlycon/rp2350a-minimal.dtb
 
 $(BUILD_DIR)/s3/00_earlycon/rp2350a-minimal.dtb: s3/00_earlycon/dts/rp2350a-minimal.dts s3/00_earlycon/dts/rp2350a.dtsi | $(BUILD_DIR)
 	mkdir -p $(BUILD_DIR)/s3/00_earlycon
