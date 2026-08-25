@@ -58,6 +58,39 @@ if (!IS_ENABLED(CONFIG_BUILTIN_DTB))
 - 分区：FAKE 64K → 3M（`partition_table.json`），bootloader 拷贝长度按分区实际大小算，不再写死 4096；后续内核变大只改分区
 - 代价：PSRAM 顶部几 KB 永久保留（最小 DTB 约 1~2KB，8MB 里可忽略）
 
+## 内核怎么知道内存有多大：memory 节点是唯一来源
+
+### 问题
+
+bootloader 跳转内核后，内核怎么知道可用内存多大、范围从哪到哪？
+
+### 结论
+
+内核**不探测内存，只信 DTB 的 `/memory` 节点**。bootloader 的 a1 只告诉内核 DTB 在哪个地址；内存范围是 DTB 的内容，不通过寄存器参数传。
+
+### 分析过程（可复现）
+
+1. **读 memory 节点**：`parse_dtb()` → `early_init_dt_scan()` → `early_init_dt_scan_memory()`（`drivers/of/fdt.c:1036`）。扫 DTB 根下所有 `device_type = "memory"` 的节点，读 `reg` 属性的 `(base, size)` 对。
+2. **登记 memblock**：每条调 `early_init_dt_add_memory_arch(base, size)` → 最终 `memblock_add(base, size)`（`fdt.c:1158` 结尾）。RISC-V 没覆盖这个弱函数，用通用版。
+3. **算范围、减保留区**：`setup_bootmem()`（`arch/riscv/mm/init.c:217`）→ `phys_ram_base = memblock_start_of_DRAM()`、`phys_ram_end = memblock_end_of_DRAM()`；再划掉内核镜像（init.c:237）、DTB（init.c:307）、initrd、reserved-memory，剩下才是可分配页。
+
+### 具体到我们的板子（S3 的 DTB 要写）
+
+```dts
+memory@11000000 {
+    device_type = "memory";
+    reg = <0x11000000 0x00800000>;
+};
+```
+
+内核看到就认为物理内存是 `[0x11000000, 0x11800000)` 共 8MB，再自己扣掉内核镜像和 DTB。
+
+### 证据与坑
+
+- 证据：S2 QEMU 日志 `Normal [mem 0x0000000080000000-0x0000000087ffffff]` = 启动参数 `-m 128M`，来源就是 QEMU 自动生成的 memory 节点。
+- 坑：memory 节点写错，内核就以为内存是错的（base 写偏，PSRAM 起点就偏）；漏写可能直接起不来。这是「内核知道有 PSRAM」的唯一入口，S3 写 DTB 时第一优先级。
+- 边界：rv32 的物理地址上限是 32 位（`MAX_MEMBLOCK_ADDR = ~0`），0x11000000 没有溢出问题。
+
 ## 参考
 
 - `arch/riscv/kernel/setup.c`（parse_dtb / setup_arch / unflatten_device_tree）
