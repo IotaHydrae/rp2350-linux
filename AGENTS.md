@@ -6,6 +6,7 @@
 - `s2/` — S2 stage: kernel config fragment (`rv32-nommu.config`), QEMU launcher (`run-qemu.sh`), prebuilt kernel (`kernel-Image`).
 - `tests/` — test programs (e.g., `psram-test`).
 - `boards/` — custom Pico SDK board headers (`rp2350a_minimal.h`, `waveshare_rp2350b_plus_w.h`).
+- `udev/` — udev rules so picotool/serial need no root (`99-rp2350.rules`, install with `sudo cp` + `udevadm reload`).
 - `exercises/` — review exercises per completed stage (answers collapsed).
 - `notes/` — learning records, reference guides, experiment logs (repo copy is the source of truth).
 - Root: `CMakeLists.txt`, `Makefile`, `PLAN.md` (product & run guide), datasheet copies.

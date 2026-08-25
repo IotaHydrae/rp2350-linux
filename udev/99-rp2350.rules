@@ -1,0 +1,24 @@
+# RP2350 / RP2040 udev 规则：免 root 访问（picotool 烧录 + CDC 串口）
+#
+# 安装：
+#   sudo cp udev/99-rp2350.rules /etc/udev/rules.d/
+#   sudo udevadm control --reload-rules
+#   sudo udevadm trigger
+# 然后重新插拔设备。烧录前仍要把板子切到 BOOTSEL 模式。
+#
+# 参考：RP2350 手册 Table 456（BOOTSEL 设备描述符 idProduct 0x000f）；
+#       pico-sdk stdio_usb_descriptors.c（运行固件 CDC 0x0009）。
+
+# ---------- RP2350 ----------
+# BOOTSEL 模式（含 PICOBOOT 接口，picotool 烧录用）2e8a:000f
+SUBSYSTEM=="usb", ATTRS{idVendor}=="2e8a", ATTRS{idProduct}=="000f", MODE="0666", TAG+="uaccess"
+
+# 运行固件 CDC 串口（ttyACM0，screen / picocom 访问用）2e8a:0009
+SUBSYSTEM=="usb", ATTRS{idVendor}=="2e8a", ATTRS{idProduct}=="0009", MODE="0666", TAG+="uaccess"
+SUBSYSTEM=="tty", ATTRS{idVendor}=="2e8a", ATTRS{idProduct}=="0009", MODE="0666"
+
+# ---------- RP2040（备用，与 pico 生态工具兼容）----------
+# BOOTSEL / PICOBOOT 2e8a:0003、2e8a:000a
+SUBSYSTEM=="usb", ATTRS{idVendor}=="2e8a", ATTRS{idProduct}=="0003", MODE="0666", TAG+="uaccess"
+SUBSYSTEM=="usb", ATTRS{idVendor}=="2e8a", ATTRS{idProduct}=="000a", MODE="0666", TAG+="uaccess"
+SUBSYSTEM=="tty", ATTRS{idVendor}=="2e8a", ATTRS{idProduct}=="000a", MODE="0666"

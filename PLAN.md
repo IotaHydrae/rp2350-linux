@@ -44,6 +44,7 @@
 - 缺：pico-sdk 的 RISC-V 裸机工具链（`riscv-none-elf-gcc`）→ S1 开工时联网安装（官方 riscv-toolchain）。
 - 工具链手动安装（用户下载）：`https://github.com/raspberrypi/pico-sdk-tools/releases/download/v2.0.0-5/riscv-toolchain-14-x86_64-lin.tar.gz`，解压后 `PICO_TOOLCHAIN_PATH` 指到含 `bin/` 的目录。
 - 烧录方式：每个例子一条 Makefile 目标（`make flash-bootloader` / `flash-fake` / `flash-psram-test`，BOOTSEL 模式 + picotool；openocd rp2350-riscv 备选）。
+- 免 root 访问 USB：`sudo cp udev/99-rp2350.rules /etc/udev/rules.d/ && sudo udevadm control --reload-rules && sudo udevadm trigger`，然后重插设备（RP2350 BOOTSEL = 2e8a:000f；运行固件 CDC = 2e8a:0009）。
 - 工程模板惯例（参考 `/home/developer/iotahydrae/rpi-pico-lab/` 下的项目）：每个工程 `CMakeLists.txt + main.c + pico_sdk_import.cmake`；环境由 `tools/envsetup.sh` 设置（`PICO_SDK_PATH=$CWD/pico-sdk`）；调试烧录用 DAPLink + OpenOCD 脚本（rp2350-riscv 用 `rp2350-riscv.cfg`）。
 - 目录结构：`s1/partition-table/`（S1 主线）、`s1/fixed-offset/`（归档）、`s2/`（内核 + qemu 脚本）、`s3/00_earlycon/`（S3-00 工程：bootloader + dts + partition_table.json）、`tests/`；根 CMakeLists 统管构建。
 - S3-00 分区：partition 0 = KERNEL @ 64K size 3M（`picotool load -p 0 s2/kernel-Image`）；partition 1 = DTB @ 3M+64K size 64K（`picotool load -p 1 build/s3/00_earlycon/rp2350a-minimal.dtb`）；bootloader 目标 `s3-00-bootloader`。
