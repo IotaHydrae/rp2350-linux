@@ -92,6 +92,11 @@ int main(void) {
            (unsigned long)xip_ctrl_hw->ctrl,
            (unsigned long)((xip_ctrl_hw->ctrl & XIP_CTRL_WRITABLE_M1_BITS) ? 1 : 0));
 
+    /* 禁用 XIP 缓存：本板 PSRAM 写回缓存不可靠（大拷贝丢写、内核写错位），
+     * 全部走 uncached 保证正确性（慢但稳）。 */
+    hw_clear_bits(&xip_ctrl_hw->ctrl, XIP_CTRL_EN_SECURE_BITS | XIP_CTRL_EN_NONSECURE_BITS);
+    printf("XIP_CTRL=0x%08lx (cache disabled)\n", (unsigned long)xip_ctrl_hw->ctrl);
+
     uint32_t kernel_flash, kernel_size, dtb_flash, dtb_size;
     if (!find_partition(0, &kernel_flash, &kernel_size) ||
         !find_partition(1, &dtb_flash, &dtb_size)) {
