@@ -24,22 +24,23 @@ $(BUILD_DIR):
 
 # ---- 烧录：每个例子一条命令（板子按住 BOOTSEL 插 USB）----
 flash-bootloader: all
-	picotool load -fu $(BUILD_DIR)/s1/bootloader.uf2
+	# --ignore-partitions：烧绝对地址固件时绕过分区路由（否则 rp2350-riscv 家族会被导进分区 0）
+	picotool load -fu --ignore-partitions $(BUILD_DIR)/s1/bootloader.uf2
 
 flash-fake: all
 	# 假镜像写入分区 0（FAKE @ 64K）；烧完带分区表固件后需重启再进 BOOTSEL
 	picotool load -fv -p 0 $(BUILD_DIR)/s1/fake-image.bin
 
 flash-psram-test: all
-	picotool load -fu $(BUILD_DIR)/tests/psram-test.uf2
+	picotool load -fu --ignore-partitions $(BUILD_DIR)/tests/psram-test.uf2
 
 flash-amo-test: all
 	# AMO 对照实验（SRAM vs PSRAM）
-	picotool load -fu $(BUILD_DIR)/tests/amo-test.uf2
+	picotool load -fu --ignore-partitions $(BUILD_DIR)/tests/amo-test.uf2
 
 # ---- S3 工程 1 (00_earlycon)：bootloader + 内核 + DTB 各一条命令 ----
 flash-s3-00-bootloader: all
-	picotool load -fu $(BUILD_DIR)/s3/00_earlycon/s3-00-bootloader.uf2
+	picotool load -fu --ignore-partitions $(BUILD_DIR)/s3/00_earlycon/s3-00-bootloader.uf2
 
 flash-s3-00-kernel: all
 	# 内核写入分区 0（KERNEL @ 64K，3MB）；烧完 bootloader 后需重启再进 BOOTSEL
