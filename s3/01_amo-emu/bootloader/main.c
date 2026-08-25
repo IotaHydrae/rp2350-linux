@@ -13,10 +13,12 @@
 #include "hardware/clocks.h"
 #include "hardware/vreg.h"
 #include "hardware/psram.h"
+#include "hardware/xip_cache.h"
 #include "hardware/regs/addressmap.h"
 
 #define KERNEL_LOAD_ADDR 0x11000000u
 #define DTB_LOAD_ADDR    0x11700000u
+#define PSRAM_UNCACHED(addr) (XIP_NOCACHE_NOALLOC_BASE + ((addr) - XIP_BASE))
 
 typedef void (*image_entry_t)(uint32_t hart, void *dtb);
 
@@ -48,13 +50,29 @@ static bool find_partition(uint32_t id, uint32_t *flash_addr, uint32_t *size_byt
 }
 
 static void copy_image(const char *name, uint32_t flash_addr, uint32_t size, uint32_t dst) {
-    printf("copy %s %u bytes: flash 0x%08x -> PSRAM 0x%08x\n",
+    printf("copy %s %u bytes: flash 0x%08x -> PSRAM 0x%08x (uncached write)\n",
            name, (unsigned)size, (unsigned)flash_addr, (unsigned)dst);
-    memcpy((void *)dst, (const void *)flash_addr, size);
-    /* 读回校验：同时把 PSRAM 地址的 XIP 缓存行以正确内容填充 */
-    printf("copy done. first bytes: %02x %02x %02x %02x\n",
-           *(volatile uint8_t *)(dst + 0), *(volatile uint8_t *)(dst + 1),
-           *(volatile uint8_t *)(dst + 2), *(volatile uint8_t *)(dst + 3));
+    /* 写 PSRAM 走 uncached 别名（0x14... 窗口），绕开 XIP 写回缓存：
+     * 3MB 大拷贝会让 16KB 缓存持续驱逐脏行，实测会损坏部分 PSRAM 区域
+     * （flash 正确、PSRAM 错，坏值像残留数据）。 */
+    memcpy((void *)PSRAM_UNCACHED(dst), (const void *)flash_addr, size);
+    printf("copy done.\n");
+}
+
+static uint32_t verify_copy(const char *name, uint32_t flash_addr, uint32_t size, uint32_t dst) {
+    uint32_t mismatches = 0;
+    const uint32_t *src = (const uint32_t *)flash_addr;
+    const uint32_t *dstp = (const uint32_t *)dst;
+    for (uint32_t i = 0; i < size / 4; i++) {
+        if (src[i] != dstp[i]) {
+            if (mismatches < 3)
+                printf("  %s MISMATCH @ 0x%08x: flash=0x%08x psram=0x%08x\n",
+                       name, (unsigned)(dst + i * 4),
+                       (unsigned)src[i], (unsigned)dstp[i]);
+            mismatches++;
+        }
+    }
+    return mismatches;
 }
 
 int main(void) {
@@ -75,6 +93,19 @@ int main(void) {
 
     copy_image("kernel", kernel_flash, kernel_size, KERNEL_LOAD_ADDR);
     copy_image("dtb", dtb_flash, dtb_size, DTB_LOAD_ADDR);
+
+    /* 跳转前：使整个 XIP 缓存无效（读回/取指都拿到 PSRAM 真实内容），再整段校验 */
+    xip_cache_invalidate_all();
+    uint32_t km = verify_copy("kernel", kernel_flash, kernel_size, KERNEL_LOAD_ADDR);
+    uint32_t dm = verify_copy("dtb", dtb_flash, dtb_size, DTB_LOAD_ADDR);
+    printf("verify: kernel mismatches=%u, dtb mismatches=%u\n", (unsigned)km, (unsigned)dm);
+    if (km || dm) {
+        printf("copy verification FAILED - halting\n");
+        while (true) tight_loop_contents();
+    }
+    printf("first bytes: %02x %02x %02x %02x\n",
+           *(volatile uint8_t *)(KERNEL_LOAD_ADDR + 0), *(volatile uint8_t *)(KERNEL_LOAD_ADDR + 1),
+           *(volatile uint8_t *)(KERNEL_LOAD_ADDR + 2), *(volatile uint8_t *)(KERNEL_LOAD_ADDR + 3));
 
     printf("disable irqs, jump to 0x%08x (a0=0 hartid, a1=0x%08x dtb)\n",
            (unsigned)KERNEL_LOAD_ADDR, (unsigned)DTB_LOAD_ADDR);

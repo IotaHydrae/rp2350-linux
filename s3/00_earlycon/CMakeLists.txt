@@ -2,7 +2,7 @@
 # 注意：目标名带工程前缀，避免与 s1 的 bootloader 目标冲突
 
 add_executable(s3-00-bootloader bootloader/main.c)
-target_link_libraries(s3-00-bootloader pico_stdlib hardware_psram)
+target_link_libraries(s3-00-bootloader pico_stdlib hardware_psram hardware_xip_cache)
 
 pico_enable_stdio_usb(s3-00-bootloader 1)
 pico_enable_stdio_uart(s3-00-bootloader 1)

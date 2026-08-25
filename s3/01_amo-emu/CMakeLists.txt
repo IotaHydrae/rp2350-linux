@@ -2,7 +2,7 @@
 # bootloader / dts / 分区表与 00 相同（DTB 仍故意缺 intc/timebase）
 
 add_executable(s3-01-bootloader bootloader/main.c)
-target_link_libraries(s3-01-bootloader pico_stdlib hardware_psram)
+target_link_libraries(s3-01-bootloader pico_stdlib hardware_psram hardware_xip_cache)
 
 pico_enable_stdio_usb(s3-01-bootloader 1)
 pico_enable_stdio_uart(s3-01-bootloader 1)
