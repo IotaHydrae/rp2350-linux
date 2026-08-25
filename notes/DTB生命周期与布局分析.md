@@ -91,6 +91,32 @@ memory@11000000 {
 - 坑：memory 节点写错，内核就以为内存是错的（base 写偏，PSRAM 起点就偏）；漏写可能直接起不来。这是「内核知道有 PSRAM」的唯一入口，S3 写 DTB 时第一优先级。
 - 边界：rv32 的物理地址上限是 32 位（`MAX_MEMBLOCK_ADDR = ~0`），0x11000000 没有溢出问题。
 
+## bootloader 死后，SRAM / SCRATCH / XIP_RAM 怎么处理
+
+### 问题
+
+bootloader 在 flash 上 XIP 执行、跳转后就死了；主 SRAM 512KB、XIP_RAM 16KB、SCRATCH_X/Y 各 4KB 这些内存，内核能使用吗？需要处理吗？
+
+### 结论
+
+- bootloader 跳转后确实「死了」：代码不再执行，留在 SRAM 的栈/数据随之作废；但死 ≠ 自动交给内核——内核认内存的唯一渠道还是 DTB 的 memory 节点，没声明的地方对内核就是「不存在」，无需处理。
+- S3 只声明 PSRAM（`0x11000000` 8MB）；其余内存全部不声明、自动闲置。
+
+### 这些块是什么（先纠正认知）
+
+- 520KB 主 SRAM 是一整块连续的 `0x20000000`–`0x20081FFF`：前 512KB 是普通 RAM，最后 8KB 就是 SCRATCH_X（0x20080000，4KB）+ SCRATCH_Y（0x20081000，4KB）——同一块 SRAM 的尾巴，SDK 单独命名是 bootrom/调试器习惯用途（pico-sdk `default_locations.ld`）。
+- XIP_RAM 16KB @ `0x13FFC000` 不是普通 SRAM，是 cache-as-SRAM 窗口：RP2350 用 pin 缓存行实现「缓存当 RAM」（手册 4.4.1.3；bootrom 也在 0x13ffc000-0x14000000 找 RAM 镜像）。语义特殊，不是即插即用内存。
+
+### 为什么 S3 不用（三个理由）
+
+1. 非连续内存是墙：PSRAM（0x11000000）和 SRAM（0x20000000）间隔约 232MB 空洞；noMMU + FLATMEM 页框连续编号，空洞需要 pfn_valid 处理——值得单独实验，不跟 S3 混变量。
+2. XIP_RAM 特殊：pin 缓存行、与 XIP 缓存互相影响、pico-sdk 有专门 xip_ram 链接脚本。
+3. 收益小：8MB PSRAM 足够内核 + 后续 rootfs；SCRATCH 8KB / 缓存窗口 16KB 对 Linux 是蚊子腿。
+
+### SRAM 的未来价值（为什么现在闲置 ≠ 永远没用）
+
+RP2350 的 AMO / lr-sc 原子操作只支持 SRAM，PSRAM 上触发 Store/AMO Fault（手册 MCAUSE CODE 7，见 PLAN.md 硬件墙）。以后内核跑到自旋锁/原子变量可能撞墙，届时 SRAM 是「放需要原子操作的数据」的候选地（S4/S5 的事）。
+
 ## 参考
 
 - `arch/riscv/kernel/setup.c`（parse_dtb / setup_arch / unflatten_device_tree）
