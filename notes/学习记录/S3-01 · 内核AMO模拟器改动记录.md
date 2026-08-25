@@ -118,3 +118,15 @@ Signed-off-by: Wooden Chair <hua.zheng@embeddedboys.com>
 # 内核构建（见第 4 节）；工程烧录见 s3/01_amo-emu/README.md
 make flash-s3-01-bootloader && make flash-s3-01-kernel && make flash-s3-01-dtb
 ```
+
+## 8. 调试补充发现与更正（2026-08-25）
+
+- **mscratch 是调试器假象**：GDB 下第一异常 mscratch=0x1120f3c0（导致处理器误走用户路径崩溃），但正常启动（内核 UART 诊断）mscratch=0、模拟器正常。OpenOCD halt/step 会弄脏 mscratch。
+- **get_cycles64 崩溃更正**：不是 noMMU GOT 未重定位（setup_vm 用 PC 相对 `la` 取运行时基址，重定位正常），而是 DTB 无 clint 节点 → `clint_time_val=NULL` 解引用。修法 = 加 RP2350 MTIME clint 节点（后续工程）。
+- **0xf0000000**：CPU 数据读 XIP 时间歇返回 0xf0000000，GDB 读同一地址正确；缓存开/关都出现过，间歇性。
+- **xip-stress 验证硬件可靠**：从 PSRAM 执行 + 读写混合，缓存开/关 × 8MB 写读回/反复读/flash/自代码区，全 0 通过。
+- **间歇性根因怀疑 = PSRAM_CS(GPIO0) 缺上拉**：Bank 0 pad 复位下拉 → 上电 CS1 被断言（手册 9.2 行 43240 明确要求外部上拉）。待用户补 10kΩ 上拉后验证。
+- **当前 workaround**（bootloader）：uncached 拷贝 + 校验（保留）、缓存禁用（电阻修好后可试恢复）、跳转前清 mscratch（无害）。
+- **临时内核 UART 诊断未提交**：amo-emu.c/h + traps.c 钩子在 linux-7.2 工作区（未 commit），验证完删除再提交。
+
+详细排查见 `实验日志/2026-08-25_S3-01硬件间歇性排查.md`。
