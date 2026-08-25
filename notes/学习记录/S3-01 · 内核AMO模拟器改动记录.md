@@ -4,6 +4,9 @@
 > 本次提交：`ee2a9d82b` — "riscv: Add AMO/LR/SC emulation for PSRAM"
 > 时间：2026-08-25 · 作者：Wooden Chair <hua.zheng@embeddedboys.com>
 
+> 相关文档：临时诊断代码（内核直接 poke PL011 打印）见
+> [S3-01 · 裸串口PL011诊断打印](./S3-01%20·%20裸串口PL011诊断打印.md)。
+
 ## 1. 背景：为什么要改内核
 
 00 工程（`s3/00_earlycon`）的结论：RP2350 的 Hazard3 把 AMO 实现为"排他读-写对"，而排他访问只在 SRAM 上支持（手册 3.1.5）。内核代码和数据全在 PSRAM（`0x11000000`），第一条原子操作（`start_kernel → boot_cpu_init → set_cpu_online → amoor.w` 写 `__cpu_online_mask`）就触发 mcause=7 Store/AMO fault，**早于任何 printk**，连 earlycon 都来不及注册，所以完全静默。
