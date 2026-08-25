@@ -187,11 +187,40 @@ bootloader 跳转内核后要看日志，需要在 cmdline 里设 `earlycon=pl01
 1. 第一级：只要 `earlycon=...` 就能出字（纯轮询寄存器，不依赖驱动）。
 2. 第二级：`console=ttyAMA0` 真 console 接管，需要 serial 节点 + clocks（fixed-clock），日志出现 `ttyAMA0 enabled` + `bootconsole disabled`。建议 cmdline 两个参数都带。
 
+## 只给 earlycon、不给 timer/clk/interrupt 时挂在哪（S3 预期依据）
+
+### 结论：会挂，三个不同死点，取决于漏掉哪个节点
+
+1. **缺 `riscv,cpu-intc`**（CPU 本地中断控制器，挂在 `/cpus/cpu@0/interrupt-controller`）→ `init_IRQ()` 直接 panic：`No interrupt controller found.`（arch/riscv/kernel/irq.c，`handle_arch_irq` 由 riscv-intc 设置）。注意：这是每个 CPU 都有的本地 intc，不是 XH3IRQ；XH3IRQ 缺了只是外设中断不工作，不 panic。
+2. **缺 `timebase-frequency`**（`/cpus` 属性）→ `time_init()` 直接 panic：`RISC-V system with no 'timebase-frequency' in DTS`（arch/riscv/kernel/time.c）。
+3. **有 timebase-frequency 但无任何 timer 节点** → 不 panic：`lpj_fine = riscv_timebase / HZ` 使 `calibrate_delay()` 走 "skipped, value calculated using timer frequency" 跳过；但没有 clockevent → 没有 tick → **jiffies 永远不前进** → 第一个需要超时/睡眠的代码（`msleep` / `schedule_timeout` / 带超时 `wait_for_completion`）永久挂住。具体挂点无法提前确定，最后一行日志就是证据。
+4. **缺 clk** → 不致命：pl011 真 console 的 probe 因 `devm_clk_get` 失败而失败/延迟，earlycon 继续工作，boot 不因此挂。
+
+### 顺序（init/main.c）
+
+```
+init_IRQ()          ← 缺 riscv,cpu-intc → panic "No interrupt controller found."
+time_init()         ← 缺 timebase-frequency → panic "RISC-V system with no 'timebase-frequency' in DTS"
+sched_clock_init()
+calibrate_delay()   ← 有 timebase 则跳过；无 clockevent → 后面某处永久挂
+```
+
+### 对 S3 的含义
+
+- 最小 DTB 必须含 `/cpus`（`timebase-frequency` + `riscv,cpu-intc`），这是不 panic 的前提，不算 timer/interrupt 部件。
+- 即使齐了这些、不给 timer 节点和 XH3IRQ，预期现象：banner + 内存信息出完后挂在某个时间相关点。panic 消息也走 earlycon，所以死因可见。
+- **timer 与 interrupt 在 tick 上是绑定的**：clockevent 靠中断驱动，MTIMECMP → XH3IRQ → riscv-intc 整条链缺一环 jiffies 都不动（S4/S5 实际应合并成一步 bring-up）。
+
 ## 参考
 
 - `arch/riscv/kernel/setup.c`（parse_dtb / setup_arch / unflatten_device_tree）
 - `arch/riscv/mm/init.c`（setup_bootmem / paging_init / memblock_reserve）
 - `arch/riscv/kernel/head.S`（_start_kernel：关中断 / fence.i / reset_regs / PMP / 清 bss / 搭栈）
+- `arch/riscv/kernel/irq.c`（init_IRQ：无 irqchip → panic）
+- `arch/riscv/kernel/time.c`（time_init：无 timebase-frequency → panic；lpj_fine 跳过校准）
+- `init/main.c`（init_IRQ → time_init → sched_clock_init → calibrate_delay 顺序）
+- `init/calibrate.c`（calibrate_delay 跳过/收敛路径）
+- `drivers/irqchip/irq-riscv-intc.c`（riscv,cpu-intc 注册 handle_arch_irq）
 - `drivers/tty/serial/earlycon.c`（early_param / setup_earlycon / register_earlycon / earlycon_map）
 - `drivers/tty/serial/amba-pl011.c`（OF_EARLYCON_DECLARE / pl011_early_write / pl011_probe 时钟要求）
 - `kernel/printk/printk.c`（register_console：boot console 注销规则 / try_enable_default_console）
