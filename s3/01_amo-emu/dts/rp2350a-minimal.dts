@@ -1,0 +1,26 @@
+// SPDX-License-Identifier: GPL-2.0
+/*
+ * RP2350A-Minimal 板级设备树（自研板：16MB flash、8MB PSRAM CS1=GPIO0、
+ * UART0 GP16/17 @115200）。
+ *
+ * 00_earlycon：memory + chosen(bootargs=earlycon) + 引入 SoC 级 rp2350a.dtsi。
+ */
+/dts-v1/;
+
+#include "rp2350a.dtsi"
+
+/ {
+	model = "RP2350A-Minimal";
+	compatible = "rp2350a-minimal", "raspberrypi,rp2350";
+
+	chosen {
+		/* 显式 earlycon 地址：PL011 @ 0x40070000，32 位寄存器访问。
+		 * 本工程不给 console=ttyAMA0——真 console 需要 clocks，留给后续工程。 */
+		bootargs = "earlycon=pl011,mmio32,0x40070000,115200n8";
+	};
+
+	memory@11000000 {
+		device_type = "memory";
+		reg = <0x11000000 0x00800000>;
+	};
+};

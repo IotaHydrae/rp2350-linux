@@ -13,3 +13,4 @@ pico_sdk_init()
 add_subdirectory(s1)      # S1 主线：bootloader + fake-image
 add_subdirectory(tests)   # 测试程序
 add_subdirectory(s3/00_earlycon)  # S3-00：真内核加载 + earlycon 最小 DTB
+add_subdirectory(s3/01_amo-emu)   # S3-01：AMO 模拟器内核 + earlycon 出字

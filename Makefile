@@ -5,7 +5,8 @@ PICO_SDK_PATH ?= /home/developer/raspberrypi/pico-sdk
 QEMU_SCRIPT := s2/run-qemu.sh
 
 .PHONY: all clean qemu test flash flash-bootloader flash-fake flash-psram-test flash-amo-test \
-        flash-s3-00-bootloader flash-s3-00-kernel flash-s3-00-dtb
+        flash-s3-00-bootloader flash-s3-00-kernel flash-s3-00-dtb \
+        flash-s3-01-bootloader flash-s3-01-kernel flash-s3-01-dtb
 
 all: $(BUILD_DIR)/build.ninja
 	ninja -C $(BUILD_DIR)
@@ -57,6 +58,23 @@ $(BUILD_DIR)/s3/00_earlycon/rp2350a-minimal.dtb: s3/00_earlycon/dts/rp2350a-mini
 	cpp -nostdinc -I s3/00_earlycon/dts -undef -x assembler-with-cpp \
 	    -o $(BUILD_DIR)/s3/00_earlycon/rp2350a-minimal.dts.pre $<
 	dtc -I dts -O dtb -o $@ $(BUILD_DIR)/s3/00_earlycon/rp2350a-minimal.dts.pre
+
+# ---- S3 工程 2 (01_amo-emu) ----
+flash-s3-01-bootloader: all
+	picotool load -fu --ignore-partitions $(BUILD_DIR)/s3/01_amo-emu/s3-01-bootloader.uf2
+
+flash-s3-01-kernel: all
+	# 带 AMO 模拟器的新内核 → 分区 0
+	picotool load -fv -p 0 -t bin s3/01_amo-emu/kernel-Image
+
+flash-s3-01-dtb: $(BUILD_DIR)/s3/01_amo-emu/rp2350a-minimal.dtb
+	picotool load -fv -p 1 -t bin $(BUILD_DIR)/s3/01_amo-emu/rp2350a-minimal.dtb
+
+$(BUILD_DIR)/s3/01_amo-emu/rp2350a-minimal.dtb: s3/01_amo-emu/dts/rp2350a-minimal.dts s3/01_amo-emu/dts/rp2350a.dtsi | $(BUILD_DIR)
+	mkdir -p $(BUILD_DIR)/s3/01_amo-emu
+	cpp -nostdinc -I s3/01_amo-emu/dts -undef -x assembler-with-cpp \
+	    -o $(BUILD_DIR)/s3/01_amo-emu/rp2350a-minimal.dts.pre $<
+	dtc -I dts -O dtb -o $@ $(BUILD_DIR)/s3/01_amo-emu/rp2350a-minimal.dts.pre
 
 # 兼容旧习惯：flash = 烧 bootloader
 flash: flash-bootloader
