@@ -15,6 +15,7 @@
 - `dts/rp2350a.dtsi` + `dts/rp2350a-minimal.dts` — 最小设备树（SoC 级 / 板级拆分，按需增量）
 - `partition_table.json` — KERNEL @64K 3MB、DTB @3M+64K 64K
 - `kernel-Image` — 内核镜像副本（从 `s2/kernel-Image` 拷入，保证本工程可独立复现）
+- `rv32-nommu.config` — 本工程内核配置碎片（riscv32 + NOMMU + M-mode，即 S2 配置）
 - 详细分析：`../../notes/学习记录/S3-00 · earlycon 工程：真板静默调试全过程.md`
 
 ## 如何复现
@@ -24,6 +25,18 @@
 ```sh
 make all                      # 编译 bootloader + 各测试（不要 sudo！）
 make build/s3/00_earlycon/rp2350a-minimal.dtb   # 编译 DTB
+```
+
+内核重建（本工程用独立构建目录 `build-rv32-00`）：
+
+```sh
+cd /home/developer/linux-7.2
+make ARCH=riscv CROSS_COMPILE=riscv64-linux-gnu- O=build-rv32-00 nommu_virt_defconfig
+scripts/kconfig/merge_config.sh -O build-rv32-00 \
+    /home/developer/iotahydrae/rp2350-linux/s3/00_earlycon/rv32-nommu.config
+make ARCH=riscv CROSS_COMPILE=riscv64-linux-gnu- O=build-rv32-00 -j$(nproc) Image
+cp build-rv32-00/arch/riscv/boot/Image \
+    /home/developer/iotahydrae/rp2350-linux/s3/00_earlycon/kernel-Image
 ```
 
 ### 2. 烧录（BOOTSEL 模式）

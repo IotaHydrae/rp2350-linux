@@ -18,6 +18,7 @@
 
 - `bootloader/`、`dts/`、`partition_table.json` — 与 00 相同（DTB 仍缺 intc/timebase）
 - `kernel-Image` — 带模拟器的新内核（构建自 `/home/developer/linux-7.2`，`O=build-rv32`）
+- `rv32-nommu.config` — 本工程内核配置碎片 = S2 配置 + `CONFIG_RISCV_AMO_EMULATION=y`（**仅 01 启用**）
 - 内核补丁：`linux-7.2` 仓库提交 `ee2a9d82b`（改动记录见 `notes/学习记录/S3-01 · 内核AMO模拟器改动记录.md`）
 
 ## 如何复现
@@ -33,8 +34,12 @@ make build/s3/01_amo-emu/rp2350a-minimal.dtb
 
 ```sh
 cd /home/developer/linux-7.2
-make ARCH=riscv CROSS_COMPILE=riscv64-linux-gnu- O=build-rv32 -j$(nproc) Image
-cp build-rv32/arch/riscv/boot/Image ../iotahydrae/rp2350-linux/s3/01_amo-emu/kernel-Image
+make ARCH=riscv CROSS_COMPILE=riscv64-linux-gnu- O=build-rv32-01 nommu_virt_defconfig
+scripts/kconfig/merge_config.sh -O build-rv32-01 \
+    /home/developer/iotahydrae/rp2350-linux/s3/01_amo-emu/rv32-nommu.config
+make ARCH=riscv CROSS_COMPILE=riscv64-linux-gnu- O=build-rv32-01 -j$(nproc) Image
+cp build-rv32-01/arch/riscv/boot/Image \
+    /home/developer/iotahydrae/rp2350-linux/s3/01_amo-emu/kernel-Image
 ```
 
 ### 烧录（BOOTSEL 模式）
