@@ -47,29 +47,33 @@ static void set_cache(bool enable)
     xip_cache_invalidate_all();
 }
 
-static void run_phase(const char *name, bool cache_en)
+static void run_phase(const char *name, bool cache_en, uint32_t wr_words)
 {
     set_cache(cache_en);
     printf("\n=== phase %s (cache %s) ===\n", name, cache_en ? "ON" : "OFF");
 
     /* A/B: 全区域写读回 */
-    int m1 = stress_wr(PSRAM_BASE, 0x5a5a5a5a, TEST_WORDS);
-    int m2 = stress_wr(PSRAM_BASE, 0xa5a5a5a5, TEST_WORDS);
-    printf("wr 5a5a5a5a mismatches=%d\n", m1);
-    printf("wr a5a5a5a5 mismatches=%d\n", m2);
+    printf("wr 5a5a5a5a (0x%x words)... ", (unsigned)wr_words);
+    int m1 = stress_wr(PSRAM_BASE, 0x5a5a5a5a, wr_words);
+    printf("done mismatches=%d\n", m1);
+    printf("wr a5a5a5a5 (0x%x words)... ", (unsigned)wr_words);
+    int m2 = stress_wr(PSRAM_BASE, 0xa5a5a5a5, wr_words);
+    printf("done mismatches=%d\n", m2);
 
     /* C: 同一 PSRAM 地址反复读 */
     uint32_t addrs[] = { PSRAM_BASE, 0x112ab558, PSRAM_BASE + 0x400000 };
     for (int i = 0; i < 3; i++) {
+        printf("flake 0x%08x... ", (unsigned)addrs[i]);
         int f = stress_flake(addrs[i], 10000);
-        printf("flake 0x%08x diffs=%d (first=0x%08x)\n",
-               (unsigned)addrs[i], f, (unsigned)*(volatile uint32_t *)addrs[i]);
+        printf("diffs=%d (first=0x%08x)\n",
+               f, (unsigned)*(volatile uint32_t *)addrs[i]);
     }
 
     /* D: flash 反复读一致性 */
     volatile uint32_t *fptr = (volatile uint32_t *)(FLASH_BASE + 0xed32);
     uint32_t first = *fptr;
     int fdiffs = 0;
+    printf("flash read... ");
     for (int i = 0; i < 10000; i++)
         if (*fptr != first)
             fdiffs++;
@@ -77,8 +81,9 @@ static void run_phase(const char *name, bool cache_en)
            (unsigned)(FLASH_BASE + 0xed32), fdiffs, (unsigned)first);
 
     /* E: 读自己的代码区（PSRAM 上取指 + 数据读同一区域） */
+    printf("self-code read... ");
     int sf = stress_flake(ROUTINE_ADDR, 10000);
-    printf("self-code flake diffs=%d\n", sf);
+    printf("diffs=%d\n", sf);
 }
 
 int main(void)
@@ -109,8 +114,11 @@ int main(void)
     stress_wr = (wr_fn)(ROUTINE_ADDR + ((uint32_t)stress_write_readback - (uint32_t)&xip_stress_text_start));
     stress_flake = (flake_fn)(ROUTINE_ADDR + ((uint32_t)stress_read_flake - (uint32_t)&xip_stress_text_start));
 
-    run_phase("1", true);
-    run_phase("2", false);
+    /* 关键数据：缓存 OFF 全套（读抖动 / flash 一致性 / 自代码区） */
+    run_phase("1-off", false, TEST_WORDS);
+    /* 缓存 ON：先小区域（256KB），再全区域（预期卡死 = 硬件写回挂起） */
+    run_phase("2-on-small", true, TEST_WORDS / 32);
+    run_phase("3-on-full", true, TEST_WORDS);
 
     printf("\ndone\n");
     while (true) tight_loop_contents();
