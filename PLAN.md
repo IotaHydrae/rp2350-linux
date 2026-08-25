@@ -26,6 +26,7 @@
 - 中断控制器：XH3IRQ，52 条外部线、16 级抢占（手册 3.8.6.1）。
 - 硬件墙：AMO / lr-sc 只支持 SRAM，PSRAM 上会触发 Store/AMO Fault（手册 MCAUSE CODE 7）→ S3/S4 亲手撞。
 - Hazard3：RV32IMAC + Zba/Zbb/Zbs/Zbkb/Zcb/Zcmp/Zicsr。
+- S3 布局（2026-08-25 拍板）：内核 Image @ `0x11000000`；DTB @ PSRAM 顶部 `0x11700000`（DTB 解析后数据已死，但内核 `setup_bootmem()` 会 memblock 永久保留，分析见 `notes/DTB生命周期与布局分析.md`）；跳转 a1 传 DTB 地址；FAKE 分区 64K → 3M（拷贝长度按分区实际大小算，后续内核变大只改分区）。
 
 ## 待定决策
 
