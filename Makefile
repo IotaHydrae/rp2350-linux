@@ -4,7 +4,7 @@ TOOLCHAIN ?= /home/developer/toolchain
 PICO_SDK_PATH ?= /home/developer/raspberrypi/pico-sdk
 QEMU_SCRIPT := s2/run-qemu.sh
 
-.PHONY: all clean qemu test flash flash-bootloader flash-fake flash-psram-test \
+.PHONY: all clean qemu test flash flash-bootloader flash-fake flash-psram-test flash-amo-test \
         flash-s3-00-bootloader flash-s3-00-kernel flash-s3-00-dtb
 
 all: $(BUILD_DIR)/build.ninja
@@ -32,6 +32,10 @@ flash-fake: all
 
 flash-psram-test: all
 	picotool load -fu $(BUILD_DIR)/tests/psram-test.uf2
+
+flash-amo-test: all
+	# AMO 对照实验（SRAM vs PSRAM）
+	picotool load -fu $(BUILD_DIR)/tests/amo-test.uf2
 
 # ---- S3 工程 1 (00_earlycon)：bootloader + 内核 + DTB 各一条命令 ----
 flash-s3-00-bootloader: all
