@@ -205,6 +205,55 @@ sched_clock_init()
 calibrate_delay()   ← 有 timebase 则跳过；无 clockevent → 后面某处永久挂
 ```
 
+### panic / 跳过代码原文（附行号）
+
+**死点 1**：`arch/riscv/kernel/irq.c:148-156` —— `handle_arch_irq` 由 riscv-intc 设置，没有 CPU 本地中断控制器就 panic：
+
+```c
+void __init init_IRQ(void)
+{
+	init_irq_scs();
+	init_irq_stacks();
+	irqchip_init();
+	if (!handle_arch_irq)
+		panic("No interrupt controller found.");
+	sbi_ipi_init();
+}
+```
+
+**死点 2**：`arch/riscv/kernel/time.c:27-33` —— `/cpus` 缺节点或 `timebase-frequency` 属性就 panic：
+
+```c
+	if (acpi_disabled) {
+		cpu = of_find_node_by_path("/cpus");
+		if (!cpu || of_property_read_u32(cpu, "timebase-frequency", &prop))
+			panic("RISC-V system with no 'timebase-frequency' in DTS\n");
+
+		of_node_put(cpu);
+		riscv_timebase = prop;
+```
+
+**跳过路径**：`init/calibrate.c:294-297` —— `time_init()` 已把 `lpj_fine = riscv_timebase / HZ` 设上，calibrate_delay 直接跳过，不会挂在延时校准：
+
+```c
+	} else if ((!printed) && lpj_fine) {
+		lpj = lpj_fine;
+		pr_info("Calibrating delay loop (skipped), "
+			"value calculated using timer frequency.. ");
+	}
+```
+
+**调用顺序**：`init/main.c:1079 / 1088 / 1140-1141`：
+
+```c
+	init_IRQ();
+	...
+	time_init();
+	...
+	sched_clock_init();
+	calibrate_delay();
+```
+
 ### 对 S3 的含义
 
 - 最小 DTB 必须含 `/cpus`（`timebase-frequency` + `riscv,cpu-intc`），这是不 panic 的前提，不算 timer/interrupt 部件。
