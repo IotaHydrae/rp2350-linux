@@ -18,7 +18,7 @@
 
 - `bootloader/`、`dts/`、`partition_table.json` — 与 00 相同（DTB 仍缺 intc/timebase）
 - `kernel-Image` — 带模拟器的新内核（构建自 `/home/developer/linux-7.2`，`O=build-rv32`）
-- `rv32-nommu.config` — 本工程内核配置碎片 = S2 配置 + `CONFIG_RISCV_AMO_EMULATION=y`（**仅 01 启用**）
+- `rp2350_minimal_defconfig` — **完整**内核 defconfig（savedefconfig 导出，非碎片）：`MMU=n`、M 模式、`RISCV_AMO_EMULATION`、PL011、无 QEMU 内置命令行；同步存于内核树 `arch/riscv/configs/`（同名）
 - 内核补丁：`linux-7.2` 仓库提交 `ee2a9d82b`（改动记录见 `notes/学习记录/S3-01 · 内核AMO模拟器改动记录.md`）
 
 ## 如何复现
@@ -33,12 +33,16 @@ make build/s3/01_earlycon/rp2350a-minimal.dtb
 内核重建（改内核后）：
 
 ```sh
+make kernel-s3-01    # 工程根目录：配置 → 编译 → 拷贝到 s3/01_earlycon/kernel-Image
+```
+
+手动等价命令：
+
+```sh
 cd /home/developer/linux-7.2
-make ARCH=riscv CROSS_COMPILE=riscv64-linux-gnu- O=build-rv32-01 nommu_virt_defconfig
-scripts/kconfig/merge_config.sh -O build-rv32-01 \
-    /home/developer/iotahydrae/rp2350-linux/s3/01_earlycon/rv32-nommu.config
-make ARCH=riscv CROSS_COMPILE=riscv64-linux-gnu- O=build-rv32-01 -j$(nproc) Image
-cp build-rv32-01/arch/riscv/boot/Image \
+make ARCH=riscv CROSS_COMPILE=riscv64-linux-gnu- O=build-rv32 rp2350_minimal_defconfig
+make ARCH=riscv CROSS_COMPILE=riscv64-linux-gnu- O=build-rv32 -j$(nproc) Image
+cp build-rv32/arch/riscv/boot/Image \
     /home/developer/iotahydrae/rp2350-linux/s3/01_earlycon/kernel-Image
 ```
 

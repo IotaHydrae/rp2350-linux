@@ -241,7 +241,7 @@ CONFIG_CMDLINE_FORCE=y
 
 ### 修复
 
-清掉 `CONFIG_CMDLINE` 与 `CONFIG_CMDLINE_FORCE`，让内核用 DTB 的 bootargs（已写入 `s3/01_earlycon/rv32-nommu.config`，带防回退注释）。
+清掉 `CONFIG_CMDLINE` 与 `CONFIG_CMDLINE_FORCE`，让内核用 DTB 的 bootargs（并入完整 defconfig `s3/01_earlycon/rp2350_minimal_defconfig`，工程根目录 `make kernel-s3-01` 一键重建）。
 
 ---
 
