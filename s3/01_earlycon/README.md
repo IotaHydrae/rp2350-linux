@@ -1,6 +1,6 @@
-# S3-01 · AMO 模拟器（让内核跑过 PSRAM 第一条原子操作）
+# S3-01 · earlycon 出字 + init_IRQ panic（AMO 模拟器跨墙）
 
-> RP2350 Linux 移植 · 工程 01：给内核加一个 M 模式 AMO/LR/SC 模拟器，跨过 00 撞上的 PSRAM AMO 墙，让 earlycon 真正出字。
+> RP2350 Linux 移植 · 工程 01：给内核加 M 模式 AMO/amocas 模拟器，跨过 00 撞上的 PSRAM AMO 墙，让 earlycon 真正出字，并在 `init_IRQ` 看到预期 panic（DTB 故意无 intc）。
 
 ## 这个工程验证什么
 
@@ -27,7 +27,7 @@
 
 ```sh
 make all                        # bootloader（不要 sudo）
-make build/s3/01_amo-emu/rp2350a-minimal.dtb
+make build/s3/01_earlycon/rp2350a-minimal.dtb
 ```
 
 内核重建（改内核后）：
@@ -36,10 +36,10 @@ make build/s3/01_amo-emu/rp2350a-minimal.dtb
 cd /home/developer/linux-7.2
 make ARCH=riscv CROSS_COMPILE=riscv64-linux-gnu- O=build-rv32-01 nommu_virt_defconfig
 scripts/kconfig/merge_config.sh -O build-rv32-01 \
-    /home/developer/iotahydrae/rp2350-linux/s3/01_amo-emu/rv32-nommu.config
+    /home/developer/iotahydrae/rp2350-linux/s3/01_earlycon/rv32-nommu.config
 make ARCH=riscv CROSS_COMPILE=riscv64-linux-gnu- O=build-rv32-01 -j$(nproc) Image
 cp build-rv32-01/arch/riscv/boot/Image \
-    /home/developer/iotahydrae/rp2350-linux/s3/01_amo-emu/kernel-Image
+    /home/developer/iotahydrae/rp2350-linux/s3/01_earlycon/kernel-Image
 ```
 
 ### 烧录（BOOTSEL 模式）

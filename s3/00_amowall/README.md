@@ -1,6 +1,6 @@
-# S3-00 · earlycon（真板只接串口）
+# S3-00 · AMO 墙定位（真板引导最小 DTB）
 
-> RP2350 Linux 移植 · 工程 00：bootloader 加载真内核 + 最小 DTB + earlycon。
+> RP2350 Linux 移植 · 工程 00：bootloader 加载真内核 + 最小 DTB，原计划 earlycon 出字后看到 init_IRQ panic。
 > 本工程**没有通关**——它的价值是撞上并定位了 RP2350 移植的第一堵真墙：**PSRAM AMO 墙**。
 
 ## 这个工程验证什么
@@ -24,7 +24,7 @@
 
 ```sh
 make all                      # 编译 bootloader + 各测试（不要 sudo！）
-make build/s3/00_earlycon/rp2350a-minimal.dtb   # 编译 DTB
+make build/s3/00_amowall/rp2350a-minimal.dtb   # 编译 DTB
 ```
 
 内核重建（本工程用独立构建目录 `build-rv32-00`）：
@@ -33,10 +33,10 @@ make build/s3/00_earlycon/rp2350a-minimal.dtb   # 编译 DTB
 cd /home/developer/linux-7.2
 make ARCH=riscv CROSS_COMPILE=riscv64-linux-gnu- O=build-rv32-00 nommu_virt_defconfig
 scripts/kconfig/merge_config.sh -O build-rv32-00 \
-    /home/developer/iotahydrae/rp2350-linux/s3/00_earlycon/rv32-nommu.config
+    /home/developer/iotahydrae/rp2350-linux/s3/00_amowall/rv32-nommu.config
 make ARCH=riscv CROSS_COMPILE=riscv64-linux-gnu- O=build-rv32-00 -j$(nproc) Image
 cp build-rv32-00/arch/riscv/boot/Image \
-    /home/developer/iotahydrae/rp2350-linux/s3/00_earlycon/kernel-Image
+    /home/developer/iotahydrae/rp2350-linux/s3/00_amowall/kernel-Image
 ```
 
 ### 2. 烧录（BOOTSEL 模式）
@@ -107,5 +107,5 @@ PSRAM AMO: TRAP mcause=0x00000007 mepc=0x100001cc mtval=0x00000000
 `kernel-Image` 是 `s2/kernel-Image` 的副本。重新构建内核后：
 
 ```sh
-cp s2/kernel-Image s3/00_earlycon/kernel-Image
+cp s2/kernel-Image s3/00_amowall/kernel-Image
 ```

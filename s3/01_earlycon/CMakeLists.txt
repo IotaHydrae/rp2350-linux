@@ -1,4 +1,4 @@
-# S3 工程 2 (01_amo-emu)：内核 AMO 模拟器——让内核跑过 PSRAM 第一条原子操作
+# S3 工程 2 (01_earlycon)：AMO/amocas 模拟器跨墙——earlycon 出字 + init_IRQ panic
 # bootloader / dts / 分区表与 00 相同（DTB 仍故意缺 intc/timebase）
 
 add_executable(s3-01-bootloader bootloader/main.c)

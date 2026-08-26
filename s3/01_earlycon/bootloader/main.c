@@ -1,5 +1,5 @@
 /*
- * S3 工程 1 (00_earlycon) bootloader（分区表版）：
+ * S3 工程 2 (01_earlycon) bootloader（分区表版）：
  *   分区 0 = KERNEL（3MB，s2/kernel-Image）-> PSRAM 0x11000000
  *   分区 1 = DTB（64K，dts 编译产物）   -> PSRAM 0x11700000（顶部）
  *   跳转 RISC-V 协议：a0 = hartid, a1 = DTB 物理地址

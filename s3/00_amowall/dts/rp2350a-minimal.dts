@@ -3,7 +3,7 @@
  * RP2350A-Minimal 板级设备树（自研板：16MB flash、8MB PSRAM CS1=GPIO0、
  * UART0 GP16/17 @115200）。
  *
- * 00_earlycon：memory + chosen(bootargs=earlycon) + 引入 SoC 级 rp2350a.dtsi。
+ * 00_amowall：memory + chosen(bootargs=earlycon) + 引入 SoC 级 rp2350a.dtsi。
  */
 /dts-v1/;
 

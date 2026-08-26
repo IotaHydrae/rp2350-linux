@@ -241,7 +241,7 @@ CONFIG_CMDLINE_FORCE=y
 
 ### 修复
 
-清掉 `CONFIG_CMDLINE` 与 `CONFIG_CMDLINE_FORCE`，让内核用 DTB 的 bootargs（已写入 `s3/01_amo-emu/rv32-nommu.config`，带防回退注释）。
+清掉 `CONFIG_CMDLINE` 与 `CONFIG_CMDLINE_FORCE`，让内核用 DTB 的 bootargs（已写入 `s3/01_earlycon/rv32-nommu.config`，带防回退注释）。
 
 ---
 
@@ -271,7 +271,7 @@ CONFIG_CMDLINE_FORCE=y
 
 ## 8. 收尾：清理与提交
 
-临时诊断（diag 预算、`[panic]` 直打、cmdline/earlycon-buf 打印）全部移除；成功内核存档 `s3/01_amo-emu/kernel-Image`（sha `f56f0e0d`）。
+临时诊断（diag 预算、`[panic]` 直打、cmdline/earlycon-buf 打印）全部移除；成功内核存档 `s3/01_earlycon/kernel-Image`（sha `f56f0e0d`）。
 
 内核（linux-7.2，作者 Wooden Chair）：
 

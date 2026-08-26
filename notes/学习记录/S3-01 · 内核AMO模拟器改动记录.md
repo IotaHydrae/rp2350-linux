@@ -11,7 +11,7 @@
 
 ## 1. 背景：为什么要改内核
 
-00 工程（`s3/00_earlycon`）的结论：RP2350 的 Hazard3 把 AMO 实现为"排他读-写对"，而排他访问只在 SRAM 上支持（手册 3.1.5）。内核代码和数据全在 PSRAM（`0x11000000`），第一条原子操作（`start_kernel → boot_cpu_init → set_cpu_online → amoor.w` 写 `__cpu_online_mask`）就触发 mcause=7 Store/AMO fault，**早于任何 printk**，连 earlycon 都来不及注册，所以完全静默。
+00 工程（`s3/00_amowall`）的结论：RP2350 的 Hazard3 把 AMO 实现为"排他读-写对"，而排他访问只在 SRAM 上支持（手册 3.1.5）。内核代码和数据全在 PSRAM（`0x11000000`），第一条原子操作（`start_kernel → boot_cpu_init → set_cpu_online → amoor.w` 写 `__cpu_online_mask`）就触发 mcause=7 Store/AMO fault，**早于任何 printk**，连 earlycon 都来不及注册，所以完全静默。
 
 这不是配置能解决的——必须让内核自己响应这个异常。修法只有一条正路：**在 M 模式 trap 路径里模拟 AMO/LR/SC**。
 
@@ -90,7 +90,7 @@ make ARCH=riscv CROSS_COMPILE=riscv64-linux-gnu- O=build-rv32 -j$(nproc) Image
 1. **`regs->regs[i]` 编译错误**：pt_regs 没有数组字段（见 2.5），改 `reg_by_num()` 映射后通过。
 2. **配置确认**：`grep CONFIG_RISCV_AMO_EMULATION build-rv32/.config` → `=y`。
 3. **符号确认**：`nm build-rv32/vmlinux | grep try_amo_emulation` → `0000b52c T try_amo_emulation`（编进去了）。
-4. 新 Image 2792176 字节（比旧版大 36 字节），拷入 `s3/01_amo-emu/kernel-Image`。
+4. 新 Image 2792176 字节（比旧版大 36 字节），拷入 `s3/01_earlycon/kernel-Image`。
 
 ## 5. 提交信息
 
@@ -120,7 +120,7 @@ Signed-off-by: Wooden Chair <hua.zheng@embeddedboys.com>
 ## 7. 复现命令
 
 ```sh
-# 内核构建（见第 4 节）；工程烧录见 s3/01_amo-emu/README.md
+# 内核构建（见第 4 节）；工程烧录见 s3/01_earlycon/README.md
 make flash-s3-01-bootloader && make flash-s3-01-kernel && make flash-s3-01-dtb
 ```
 

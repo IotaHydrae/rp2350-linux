@@ -12,5 +12,5 @@ pico_sdk_init()
 # 每个目录自己管理构建目标：
 add_subdirectory(s1)      # S1 主线：bootloader + fake-image
 add_subdirectory(tests)   # 测试程序
-add_subdirectory(s3/00_earlycon)  # S3-00：真内核加载 + earlycon 最小 DTB
-add_subdirectory(s3/01_amo-emu)   # S3-01：AMO 模拟器内核 + earlycon 出字
+add_subdirectory(s3/00_amowall)  # S3-00：最小 DTB 真板引导，撞出 AMO 墙
+add_subdirectory(s3/01_earlycon)   # S3-01：AMO/amocas 模拟器跨墙，earlycon 出字 + init_IRQ panic

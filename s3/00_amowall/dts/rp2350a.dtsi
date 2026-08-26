@@ -2,7 +2,7 @@
 /*
  * RP2350A SoC 级设备树（工程按需增量，不一次性堆全）。
  *
- * 00_earlycon 故意只给能出 earlycon 的最少内容，并**故意去掉**：
+ * 00_amowall 故意只给能出 earlycon 的最少内容，并**故意去掉**：
  *   - /cpus 的 timebase-frequency
  *   - cpu@0 的 riscv,cpu-intc（CPU 本地中断控制器）
  * 目的：让内核在启动早期 panic（init_IRQ: "No interrupt controller found."），
@@ -41,7 +41,7 @@
 		serial@40070000 {
 			compatible = "arm,pl011";
 			reg = <0x40070000 0x1000>;
-			/* 00_earlycon：不加 clocks/interrupts，pl011 真驱动 probe 失败，
+			/* 00_amowall：不加 clocks/interrupts，pl011 真驱动 probe 失败，
 			 * earlycon 不受影响（显式地址轮询写寄存器）。 */
 		};
 	};

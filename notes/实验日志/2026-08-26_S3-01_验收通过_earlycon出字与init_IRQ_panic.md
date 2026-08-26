@@ -11,7 +11,7 @@
 1. DTB 文件本身没问题（fdtget 能读出 pl011 bootargs）。
 2. 加诊断打印 `cmdline:` → 内核的 boot_command_line 竟是 **QEMU 的**（`root=/dev/vda rw earlycon=uart8250,mmio,0x10000000,... console=ttyS0`）。
 3. 根因：`arch/riscv/configs/nommu_virt_defconfig` 自带 `CONFIG_CMDLINE="root=/dev/vda ..."` + **`CONFIG_CMDLINE_FORCE=y`**——内核强制用编译期内置命令行，完全无视 DTB 的 bootargs。earlycon 因此一直按 `uart8250@0x10000000`（板上的 flash 地址）配置，输出进了错误地址。
-4. 修复：清掉 `CONFIG_CMDLINE` 与 `CONFIG_CMDLINE_FORCE`，让内核用 DTB 的 bootargs（已写入 `s3/01_amo-emu/rv32-nommu.config`）。
+4. 修复：清掉 `CONFIG_CMDLINE` 与 `CONFIG_CMDLINE_FORCE`，让内核用 DTB 的 bootargs（已写入 `s3/01_earlycon/rv32-nommu.config`）。
 
 ## 验收日志（关键行）
 
@@ -31,7 +31,7 @@
 - `c8bf5c2a3` serial: Allow PL011 driver build on RISC-V（Kconfig 放宽）
 - `24ad00dc9` riscv: RP2350: temporary SIO MTIME workaround for get_cycles()（**S3-02 回退**）
 
-临时诊断打印（diag/panic/cmdline/earlycon-buf）已全部移除；成功内核存档于 `s3/01_amo-emu/kernel-Image`。
+临时诊断打印（diag/panic/cmdline/earlycon-buf）已全部移除；成功内核存档于 `s3/01_earlycon/kernel-Image`。
 
 ## S3-02 计划（下一步）
 

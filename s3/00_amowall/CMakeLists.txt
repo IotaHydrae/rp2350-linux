@@ -1,4 +1,4 @@
-# S3 工程 1 (00_earlycon)：真内核加载 + 最小 DTB + earlycon 出字
+# S3 工程 1 (00_amowall)：真内核加载 + 最小 DTB，撞出 PSRAM AMO 墙
 # 注意：目标名带工程前缀，避免与 s1 的 bootloader 目标冲突
 
 add_executable(s3-00-bootloader bootloader/main.c)

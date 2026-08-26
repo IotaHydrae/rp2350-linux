@@ -4,7 +4,8 @@
 
 - `s1/` — S1 stage: `partition-table/` (bootloader + fake-image + `partition_table.json`), `fixed-offset/` (archived earlier version).
 - `s2/` — S2 stage: kernel config fragment (`rv32-nommu.config`), QEMU launcher (`run-qemu.sh`), prebuilt kernel (`kernel-Image`).
-- `s3/00_earlycon/` — S3-00 stage: bootloader + `dts/` (SoC/board split) + `partition_table.json` + `README.md` (reproduce steps) + `kernel-Image` (local copy of `s2/kernel-Image`). Rule for later `01/02` stages: each stage folder keeps its own README and kernel image copy so it can be reproduced standalone.
+- `s3/00_amowall/` — S3-00 stage (minimal-DTB real-board boot that hit and located the PSRAM AMO wall): bootloader + `dts/` (SoC/board split) + `partition_table.json` + `README.md` + `kernel-Image`.
+- `s3/01_earlycon/` — S3-01 stage (AMO/amocas emulation crossed the wall; earlycon output + `init_IRQ` panic achieved): same layout as `00_amowall`. Rule for later `02+` stages: each stage folder keeps its own README and kernel image copy so it can be reproduced standalone.
 - `tests/` — test programs (e.g., `psram-test`).
 - `boards/` — custom Pico SDK board headers (`rp2350a_minimal.h`, `waveshare_rp2350b_plus_w.h`).
 - `udev/` — udev rules so picotool/serial need no root (`99-rp2350.rules`, install with `sudo cp` + `udevadm reload`).

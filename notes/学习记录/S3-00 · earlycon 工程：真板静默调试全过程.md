@@ -26,7 +26,7 @@ DTB 按"工程按需增量"规则拆两块：`rp2350a.dtsi`（SoC 级）+ `rp235
 
 ## 2. 工程搭建
 
-`s3/00_earlycon/`：
+`s3/00_amowall/`：
 
 - `bootloader/main.c`：分区表 bootloader——`rom_get_partition_table_info` 按 id 查分区扇区范围 → `memcpy` 拷内核到 `0x11000000`、拷 DTB 到 `0x11700000` → `csrci mstatus, 0x8` 关中断 → 函数指针跳转，a1=DTB 地址。
 - `partition_table.json`：KERNEL id0 @64K size 3M；DTB id1 @3M+64K size 64K。
@@ -186,14 +186,14 @@ PSRAM AMO: TRAP mcause=0x00000007 mepc=0x100001cc mtval=0x00000000
 
 1. S3-00 的验收从"看到 intc panic"变成"**亲眼撞上 PSRAM AMO 墙并定位到第一条指令**"——收获更大：这是 RP2350 Linux 移植的核心矛盾，不解决它，earlycon/console/timer 全都没戏。
 2. 修法正路 = **M 模式 AMO 模拟器**：自定义 trap 入口（或扩展 handle_exception 早期路径），解码 AMO 指令（amoadd/amoswap/amoor/amoand/amoxor/amomin/amomax + W/D、aq/rl 位），对非 SRAM 地址用普通 load/store 模拟，mepc+4 后 mret。原子性安全：单核 + trap 期间中断自动关闭。
-3. 下一步工程：`s3/01_amo-emu`（模拟器）——它让内核能跑过第一条原子操作，之后 earlycon 才可能出字。
+3. 下一步工程：`s3/01_earlycon`（模拟器）——它让内核能跑过第一条原子操作，之后 earlycon 才可能出字。
 
 ## 附录 A：完整命令清单
 
 ```sh
 # 构建
 make all
-make build/s3/00_earlycon/rp2350a-minimal.dtb
+make build/s3/00_amowall/rp2350a-minimal.dtb
 
 # 烧录（BOOTSEL 模式；内核/DTB 用 -p 走分区）
 make flash-s3-00-bootloader

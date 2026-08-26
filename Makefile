@@ -43,42 +43,42 @@ flash-xip-stress: all
 	# XIP 数据读/写可靠性压力测试（PSRAM 上执行）
 	picotool load -fu --ignore-partitions $(BUILD_DIR)/tests/xip-stress.uf2
 
-# ---- S3 工程 1 (00_earlycon)：bootloader + 内核 + DTB 各一条命令 ----
+# ---- S3 工程 1 (00_amowall 撞墙定位)：bootloader + 内核 + DTB 各一条命令 ----
 flash-s3-00-bootloader: all
-	picotool load -fu --ignore-partitions $(BUILD_DIR)/s3/00_earlycon/s3-00-bootloader.uf2
+	picotool load -fu --ignore-partitions $(BUILD_DIR)/s3/00_amowall/s3-00-bootloader.uf2
 
 flash-s3-00-kernel: all
 	# 内核写入分区 0（KERNEL @ 64K，3MB）；烧完 bootloader 后需重启再进 BOOTSEL
 	# -t bin 必须放在 -p 之后（picotool 解析器见到 -t 后不再接受 -p）
-	# 用工程内副本：重新构建内核后执行 cp s2/kernel-Image s3/00_earlycon/kernel-Image
-	picotool load -fv -p 0 -t bin s3/00_earlycon/kernel-Image
+	# 用工程内副本：重新构建内核后执行 cp s2/kernel-Image s3/00_amowall/kernel-Image
+	picotool load -fv -p 0 -t bin s3/00_amowall/kernel-Image
 
-flash-s3-00-dtb: $(BUILD_DIR)/s3/00_earlycon/rp2350a-minimal.dtb
+flash-s3-00-dtb: $(BUILD_DIR)/s3/00_amowall/rp2350a-minimal.dtb
 	# DTB 写入分区 1（DTB @ 3MB+64K）
-	picotool load -fv -p 1 -t bin $(BUILD_DIR)/s3/00_earlycon/rp2350a-minimal.dtb
+	picotool load -fv -p 1 -t bin $(BUILD_DIR)/s3/00_amowall/rp2350a-minimal.dtb
 
-$(BUILD_DIR)/s3/00_earlycon/rp2350a-minimal.dtb: s3/00_earlycon/dts/rp2350a-minimal.dts s3/00_earlycon/dts/rp2350a.dtsi | $(BUILD_DIR)
-	mkdir -p $(BUILD_DIR)/s3/00_earlycon
-	cpp -nostdinc -I s3/00_earlycon/dts -undef -x assembler-with-cpp \
-	    -o $(BUILD_DIR)/s3/00_earlycon/rp2350a-minimal.dts.pre $<
-	dtc -I dts -O dtb -o $@ $(BUILD_DIR)/s3/00_earlycon/rp2350a-minimal.dts.pre
+$(BUILD_DIR)/s3/00_amowall/rp2350a-minimal.dtb: s3/00_amowall/dts/rp2350a-minimal.dts s3/00_amowall/dts/rp2350a.dtsi | $(BUILD_DIR)
+	mkdir -p $(BUILD_DIR)/s3/00_amowall
+	cpp -nostdinc -I s3/00_amowall/dts -undef -x assembler-with-cpp \
+	    -o $(BUILD_DIR)/s3/00_amowall/rp2350a-minimal.dts.pre $<
+	dtc -I dts -O dtb -o $@ $(BUILD_DIR)/s3/00_amowall/rp2350a-minimal.dts.pre
 
-# ---- S3 工程 2 (01_amo-emu) ----
+# ---- S3 工程 2 (01_earlycon 出字验收) ----
 flash-s3-01-bootloader: all
-	picotool load -fu --ignore-partitions $(BUILD_DIR)/s3/01_amo-emu/s3-01-bootloader.uf2
+	picotool load -fu --ignore-partitions $(BUILD_DIR)/s3/01_earlycon/s3-01-bootloader.uf2
 
 flash-s3-01-kernel: all
 	# 带 AMO 模拟器的新内核 → 分区 0
-	picotool load -fv -p 0 -t bin s3/01_amo-emu/kernel-Image
+	picotool load -fv -p 0 -t bin s3/01_earlycon/kernel-Image
 
-flash-s3-01-dtb: $(BUILD_DIR)/s3/01_amo-emu/rp2350a-minimal.dtb
-	picotool load -fv -p 1 -t bin $(BUILD_DIR)/s3/01_amo-emu/rp2350a-minimal.dtb
+flash-s3-01-dtb: $(BUILD_DIR)/s3/01_earlycon/rp2350a-minimal.dtb
+	picotool load -fv -p 1 -t bin $(BUILD_DIR)/s3/01_earlycon/rp2350a-minimal.dtb
 
-$(BUILD_DIR)/s3/01_amo-emu/rp2350a-minimal.dtb: s3/01_amo-emu/dts/rp2350a-minimal.dts s3/01_amo-emu/dts/rp2350a.dtsi | $(BUILD_DIR)
-	mkdir -p $(BUILD_DIR)/s3/01_amo-emu
-	cpp -nostdinc -I s3/01_amo-emu/dts -undef -x assembler-with-cpp \
-	    -o $(BUILD_DIR)/s3/01_amo-emu/rp2350a-minimal.dts.pre $<
-	dtc -I dts -O dtb -o $@ $(BUILD_DIR)/s3/01_amo-emu/rp2350a-minimal.dts.pre
+$(BUILD_DIR)/s3/01_earlycon/rp2350a-minimal.dtb: s3/01_earlycon/dts/rp2350a-minimal.dts s3/01_earlycon/dts/rp2350a.dtsi | $(BUILD_DIR)
+	mkdir -p $(BUILD_DIR)/s3/01_earlycon
+	cpp -nostdinc -I s3/01_earlycon/dts -undef -x assembler-with-cpp \
+	    -o $(BUILD_DIR)/s3/01_earlycon/rp2350a-minimal.dts.pre $<
+	dtc -I dts -O dtb -o $@ $(BUILD_DIR)/s3/01_earlycon/rp2350a-minimal.dts.pre
 
 # 兼容旧习惯：flash = 烧 bootloader
 flash: flash-bootloader
