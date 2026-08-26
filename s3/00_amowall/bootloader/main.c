@@ -1,6 +1,6 @@
 /*
  * S3 工程 1 (00_amowall) bootloader（分区表版）：
- *   分区 0 = KERNEL（3MB，s2/kernel-Image）-> PSRAM 0x11000000
+ *   分区 0 = KERNEL（3MB，本工程 kernel-Image）-> PSRAM 0x11000000
  *   分区 1 = DTB（64K，dts 编译产物）   -> PSRAM 0x11700000（顶部）
  *   跳转 RISC-V 协议：a0 = hartid, a1 = DTB 物理地址
  * 相对 S1 的改动：真内核替换假镜像、DTB 分区 + 拷贝 + a1 传递。
@@ -81,21 +81,17 @@ int main(void) {
     set_sys_clock_khz(150 * 1000, true);
     stdio_init_all();
 
-    printf("\n=== s3-00 earlycon bootloader ===\n");
+    printf("\n=== s3-00 amowall bootloader ===\n");
     printf("PSRAM available: %d, size: %u\n",
            psram_is_available(), (unsigned)psram_get_size());
 
     /* 显式开启 PSRAM 写使能（WRITABLE_M1）：XIP 内存默认只读，
      * 未置位时缓存写会"看似成功、驱逐时丢失"。打印当前值便于确认。 */
     hw_set_bits(&xip_ctrl_hw->ctrl, XIP_CTRL_WRITABLE_M1_BITS);
-    printf("XIP_CTRL=0x%08lx (WRITABLE_M1=%lu)\n",
-           (unsigned long)xip_ctrl_hw->ctrl,
-           (unsigned long)((xip_ctrl_hw->ctrl & XIP_CTRL_WRITABLE_M1_BITS) ? 1 : 0));
 
     /* 禁用 XIP 缓存：本板 PSRAM 写回缓存不可靠（大拷贝丢写、内核写错位），
      * 全部走 uncached 保证正确性（慢但稳）。 */
     hw_clear_bits(&xip_ctrl_hw->ctrl, XIP_CTRL_EN_SECURE_BITS | XIP_CTRL_EN_NONSECURE_BITS);
-    printf("XIP_CTRL=0x%08lx (cache disabled)\n", (unsigned long)xip_ctrl_hw->ctrl);
 
     uint32_t kernel_flash, kernel_size, dtb_flash, dtb_size;
     if (!find_partition(0, &kernel_flash, &kernel_size) ||
