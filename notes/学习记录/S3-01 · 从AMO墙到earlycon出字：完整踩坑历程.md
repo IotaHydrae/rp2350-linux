@@ -51,6 +51,12 @@ S3-00 结论：这不是配置能解决的，必须让内核自己在 trap 路�
 
 根因：3MB 大拷贝经 XIP 写回缓存，16KB 缓存持续驱逐脏行导致丢写/写错位。修法：**拷贝走 uncached 窗口（`0x14...` 别名）+ 跳转前整段校验**（bootloader 提交 `34dedec`/`9fbd7b2` 等）。
 
+> **更正（2026-08-26，bootloader 最小化实验）**：上述"写回缓存不可靠"结论是错的——电阻补好后，
+> 真板用**普通 memcpy + 缓存 ON + 整段校验**一次通过（`verify: mismatches=0`，内核照常出 banner + panic）。
+> 当时拷贝损坏的真正根因是 **PSRAM_CS(GPIO0) 缺上拉的硬件问题**（Bank 0 复位下拉 → 上电瞬间 CS1 被断言）。
+> 5 个软件 workaround（uncached 拷贝 / 手动 WRITABLE_M1 / 禁用 XIP 缓存 / invalidate / 清 mscratch+MIE）
+> 已全部删除（`1b2e416`），bootloader 恢复最小形态。
+
 ### 间歇性卡死：疑似硬件（PSRAM_CS 上拉）
 
 修好拷贝后仍偶发卡死（复位后恢复）。怀疑 `PSRAM_CS=GPIO0`（Bank 0）复位内部下拉 → 上电瞬间 CS1 被断言。用户补了 10kΩ 上拉后，卡死消失——但后续又出现新问题，进入下面的关卡。
