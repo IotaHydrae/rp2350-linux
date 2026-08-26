@@ -131,7 +131,7 @@ make flash-s3-01-bootloader && make flash-s3-01-kernel && make flash-s3-01-dtb
 - **0xf0000000**：CPU 数据读 XIP 时间歇返回 0xf0000000，GDB 读同一地址正确；缓存开/关都出现过，间歇性。
 - **xip-stress 验证硬件可靠**：从 PSRAM 执行 + 读写混合，缓存开/关 × 8MB 写读回/反复读/flash/自代码区，全 0 通过。
 - **间歇性根因怀疑 = PSRAM_CS(GPIO0) 缺上拉**：Bank 0 pad 复位下拉 → 上电 CS1 被断言（手册 9.2 行 43240 明确要求外部上拉）。待用户补 10kΩ 上拉后验证。
-- **当前 workaround**（bootloader）：uncached 拷贝 + 校验（保留）、缓存禁用（电阻修好后可试恢复）、跳转前清 mscratch（无害）。
+- **当前 workaround**（bootloader）：**已全部移除**（2026-08-26 真板验证均冗余，git `1b2e416`）——普通 memcpy + 缓存 ON + 整段校验即可；当时的"写回缓存不可靠"实为硬件 CS 上拉问题。
 - **临时内核 UART 诊断未提交**：amo-emu.c/h + traps.c 钩子在 linux-7.2 工作区（未 commit），验证完删除再提交。
 
 详细排查见 `实验日志/2026-08-25_S3-01硬件间歇性排查.md`。
