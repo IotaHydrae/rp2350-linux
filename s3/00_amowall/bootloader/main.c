@@ -1,9 +1,15 @@
 /*
- * S3 工程 1 (00_amowall) bootloader（分区表版）：
+ * S3 工程 1 (00_amowall) bootloader（分区表版 · 最小化变体）：
  *   分区 0 = KERNEL（3MB，本工程 kernel-Image）-> PSRAM 0x11000000
  *   分区 1 = DTB（64K，dts 编译产物）   -> PSRAM 0x11700000（顶部）
  *   跳转 RISC-V 协议：a0 = hartid, a1 = DTB 物理地址
- * 相对 S1 的改动：真内核替换假镜像、DTB 分区 + 拷贝 + a1 传递。
+ *
+ * 最小化说明：以下"曾经认为必要"的处理已全部移除（2026-08-26 真板验证均为冗余）：
+ *   - uncached 拷贝 → 普通 memcpy（写回缓存路径；xip-stress 缓存 ON 全过）
+ *   - 显式置 WRITABLE_M1 → SDK psram_init() 已置（psram.c:284）
+ *   - 禁用 XIP 缓存 → 移除（恢复缓存 ON）
+ *   - xip_cache_invalidate_all → 普通 memcpy 走缓存别名，天然一致
+ *   - 清 mscratch / 清 MIE → 内核 head.S 自己清（CSR_SCRATCH zero / CSR_IE zero）
  */
 #include <stdio.h>
 #include <string.h>
@@ -13,13 +19,9 @@
 #include "hardware/clocks.h"
 #include "hardware/vreg.h"
 #include "hardware/psram.h"
-#include "hardware/xip_cache.h"
-#include "hardware/regs/addressmap.h"
-#include "hardware/structs/xip.h"
 
 #define KERNEL_LOAD_ADDR 0x11000000u
 #define DTB_LOAD_ADDR    0x11700000u
-#define PSRAM_UNCACHED(addr) (XIP_NOCACHE_NOALLOC_BASE + ((addr) - XIP_BASE))
 
 typedef void (*image_entry_t)(uint32_t hart, void *dtb);
 
@@ -51,12 +53,9 @@ static bool find_partition(uint32_t id, uint32_t *flash_addr, uint32_t *size_byt
 }
 
 static void copy_image(const char *name, uint32_t flash_addr, uint32_t size, uint32_t dst) {
-    printf("copy %s %u bytes: flash 0x%08x -> PSRAM 0x%08x (uncached write)\n",
+    printf("copy %s %u bytes: flash 0x%08x -> PSRAM 0x%08x\n",
            name, (unsigned)size, (unsigned)flash_addr, (unsigned)dst);
-    /* 写 PSRAM 走 uncached 别名（0x14... 窗口），绕开 XIP 写回缓存：
-     * 3MB 大拷贝会让 16KB 缓存持续驱逐脏行，实测会损坏部分 PSRAM 区域
-     * （flash 正确、PSRAM 错，坏值像残留数据）。 */
-    memcpy((void *)PSRAM_UNCACHED(dst), (const void *)flash_addr, size);
+    memcpy((void *)dst, (const void *)flash_addr, size);
     printf("copy done.\n");
 }
 
@@ -85,14 +84,6 @@ int main(void) {
     printf("PSRAM available: %d, size: %u\n",
            psram_is_available(), (unsigned)psram_get_size());
 
-    /* 显式开启 PSRAM 写使能（WRITABLE_M1）：XIP 内存默认只读，
-     * 未置位时缓存写会"看似成功、驱逐时丢失"。打印当前值便于确认。 */
-    hw_set_bits(&xip_ctrl_hw->ctrl, XIP_CTRL_WRITABLE_M1_BITS);
-
-    /* 禁用 XIP 缓存：本板 PSRAM 写回缓存不可靠（大拷贝丢写、内核写错位），
-     * 全部走 uncached 保证正确性（慢但稳）。 */
-    hw_clear_bits(&xip_ctrl_hw->ctrl, XIP_CTRL_EN_SECURE_BITS | XIP_CTRL_EN_NONSECURE_BITS);
-
     uint32_t kernel_flash, kernel_size, dtb_flash, dtb_size;
     if (!find_partition(0, &kernel_flash, &kernel_size) ||
         !find_partition(1, &dtb_flash, &dtb_size)) {
@@ -103,8 +94,6 @@ int main(void) {
     copy_image("kernel", kernel_flash, kernel_size, KERNEL_LOAD_ADDR);
     copy_image("dtb", dtb_flash, dtb_size, DTB_LOAD_ADDR);
 
-    /* 跳转前：使整个 XIP 缓存无效（读回/取指都拿到 PSRAM 真实内容），再整段校验 */
-    xip_cache_invalidate_all();
     uint32_t km = verify_copy("kernel", kernel_flash, kernel_size, KERNEL_LOAD_ADDR);
     uint32_t dm = verify_copy("dtb", dtb_flash, dtb_size, DTB_LOAD_ADDR);
     printf("verify: kernel mismatches=%u, dtb mismatches=%u\n", (unsigned)km, (unsigned)dm);
@@ -118,8 +107,6 @@ int main(void) {
 
     printf("disable irqs, jump to 0x%08x (a0=0 hartid, a1=0x%08x dtb)\n",
            (unsigned)KERNEL_LOAD_ADDR, (unsigned)DTB_LOAD_ADDR);
-    __asm__ volatile("csrci mstatus, 0x8"); // 清 MIE，避免中断干扰内核启动
-    __asm__ volatile("csrw 0x340, zero");   // 清 mscratch：内核异常入口靠 mscratch=0 判定内核态
     ((image_entry_t)KERNEL_LOAD_ADDR)(0, (void *)DTB_LOAD_ADDR);
 
     printf("should never reach here\n");
