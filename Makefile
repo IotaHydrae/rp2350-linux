@@ -5,7 +5,7 @@ PICO_SDK_PATH ?= /home/developer/raspberrypi/pico-sdk
 QEMU_SCRIPT := s2/run-qemu.sh
 
 .PHONY: all clean qemu test flash flash-bootloader flash-fake flash-psram-test flash-amo-test flash-xip-stress \
-        kernel-s3-01 \
+        kernel-s3-00 kernel-s3-01 \
         flash-s3-00-bootloader flash-s3-00-kernel flash-s3-00-dtb \
         flash-s3-01-bootloader flash-s3-01-kernel flash-s3-01-dtb
 
@@ -81,23 +81,41 @@ $(BUILD_DIR)/s3/01_earlycon/rp2350a-minimal.dtb: s3/01_earlycon/dts/rp2350a-mini
 	    -o $(BUILD_DIR)/s3/01_earlycon/rp2350a-minimal.dts.pre $<
 	dtc -I dts -O dtb -o $@ $(BUILD_DIR)/s3/01_earlycon/rp2350a-minimal.dts.pre
 
-# ---- 内核构建（linux-7.2 源码树，out-of-tree build-rv32）----
-# 用法：改完内核源码后直接 `make kernel-s3-01`，自动完成 配置 → 编译 → 拷贝到工程目录。
+# ---- 内核构建（linux-7.2 源码树，out-of-tree 构建目录）----
+# 用法：改完内核源码后直接 `make kernel-s3-00` / `make kernel-s3-01`，
+#       自动完成 配置 → 编译 → 拷贝到对应工程目录。
 # 手动等价命令（了解原理用）：
 #   cd /home/developer/linux-7.2
-#   make ARCH=riscv CROSS_COMPILE=riscv64-linux-gnu- O=build-rv32 rp2350_minimal_defconfig
-#   make ARCH=riscv CROSS_COMPILE=riscv64-linux-gnu- O=build-rv32 -j$(nproc) Image
-#   cp build-rv32/arch/riscv/boot/Image <工程>/s3/01_earlycon/kernel-Image
+#   make ARCH=riscv CROSS_COMPILE=riscv64-linux-gnu- O=build-rv32[-00] <rp2350_*_defconfig>
+#   make ARCH=riscv CROSS_COMPILE=riscv64-linux-gnu- O=build-rv32[-00] -j$(nproc) Image
+#   cp build-rv32[-00]/arch/riscv/boot/Image <工程>/s3/0x_*/kernel-Image
 KERNEL_SRC   ?= /home/developer/linux-7.2
 KERNEL_BUILD := $(KERNEL_SRC)/build-rv32
 KERNEL_CROSS ?= riscv64-linux-gnu-
 
+# ---- S3-00（撞墙定位，无 AMO 模拟器）：build-rv32-00 ----
 # .config 不存在、或 defconfig 有改动时，重新生成。
-# 完整 defconfig（savedefconfig 导出）为真源：工程内副本同步进内核树 configs 后直接 make。
-# 不用 merge_config 碎片——它的 alldefconfig 会用默认值重建配置（MMU 默认 y 会盖掉 MMU=n）。
+# 完整 defconfig（savedefconfig 导出）为真源，只放工程内：拷进构建目录当 .config 种子，
+# 再 olddefconfig 补齐默认值。不往内核树加 config，也不用 merge_config（其 alldefconfig
+# 会用默认值重建配置，MMU 默认 y 会盖掉 MMU=n）。
+$(KERNEL_SRC)/build-rv32-00/.config: $(CURDIR)/s3/00_amowall/rp2350_amowall_defconfig
+	mkdir -p $(KERNEL_SRC)/build-rv32-00
+	cp $(CURDIR)/s3/00_amowall/rp2350_amowall_defconfig $(KERNEL_SRC)/build-rv32-00/.config
+	cd $(KERNEL_SRC) && make ARCH=riscv CROSS_COMPILE=$(KERNEL_CROSS) O=build-rv32-00 olddefconfig
+
+# 编译内核 Image 并存档到 S3-00 工程（烧录用 make flash-s3-00-kernel）
+kernel-s3-00: $(KERNEL_SRC)/build-rv32-00/.config
+	cd $(KERNEL_SRC) && make ARCH=riscv CROSS_COMPILE=$(KERNEL_CROSS) O=build-rv32-00 -j$$(nproc) Image
+	cp $(KERNEL_SRC)/build-rv32-00/arch/riscv/boot/Image s3/00_amowall/kernel-Image
+	sha256sum s3/00_amowall/kernel-Image
+
+# ---- S3-01（earlycon 出字，含 AMO/amocas 模拟器）：build-rv32 ----
+# 完整 defconfig（savedefconfig 导出）为真源，只放工程内：拷进构建目录当 .config 种子，
+# 再 olddefconfig 补齐默认值（不依赖内核树 configs）。
 $(KERNEL_BUILD)/.config: $(CURDIR)/s3/01_earlycon/rp2350_minimal_defconfig
-	cp $(CURDIR)/s3/01_earlycon/rp2350_minimal_defconfig $(KERNEL_SRC)/arch/riscv/configs/rp2350_minimal_defconfig
-	cd $(KERNEL_SRC) && make ARCH=riscv CROSS_COMPILE=$(KERNEL_CROSS) O=build-rv32 rp2350_minimal_defconfig
+	mkdir -p $(KERNEL_BUILD)
+	cp $(CURDIR)/s3/01_earlycon/rp2350_minimal_defconfig $(KERNEL_BUILD)/.config
+	cd $(KERNEL_SRC) && make ARCH=riscv CROSS_COMPILE=$(KERNEL_CROSS) O=build-rv32 olddefconfig
 
 # 编译内核 Image 并存档到 S3-01 工程（烧录用 make flash-s3-01-kernel）
 kernel-s3-01: $(KERNEL_BUILD)/.config

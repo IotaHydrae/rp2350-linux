@@ -18,7 +18,7 @@
 
 - `bootloader/`、`dts/`、`partition_table.json` — 与 00 相同（DTB 仍缺 intc/timebase）
 - `kernel-Image` — 带模拟器的新内核（构建自 `/home/developer/linux-7.2`，`O=build-rv32`）
-- `rp2350_minimal_defconfig` — **完整**内核 defconfig（savedefconfig 导出，非碎片）：`MMU=n`、M 模式、`RISCV_AMO_EMULATION`、PL011、无 QEMU 内置命令行；同步存于内核树 `arch/riscv/configs/`（同名）
+- `rp2350_minimal_defconfig` — **完整**内核 defconfig（savedefconfig 导出，非碎片）：`MMU=n`、M 模式、`RISCV_AMO_EMULATION`、PL011、无 QEMU 内置命令行；只放工程内，构建时拷进 `build-rv32/.config` 再 `olddefconfig`（内核树另有一份已提交的同名快照，构建不依赖它）
 - 内核补丁：`linux-7.2` 仓库提交 `ee2a9d82b`（改动记录见 `notes/学习记录/S3-01 · 内核AMO模拟器改动记录.md`）
 
 ## 如何复现

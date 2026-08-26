@@ -28,7 +28,7 @@ Note: after flashing firmware with an embedded partition table, reboot the devic
 
 - C code: 4-space indent, `snake_case` functions and variables, descriptive names; follow pico-sdk conventions.
 - Board headers use the SDK's `PICO_*` macro conventions (`PICO_RP2350A`, `PICO_PSRAM_CS_PIN`, ...).
-- Kernel config fragments live in `s2/` (QEMU) and contain plain `CONFIG_*` lines; real-board stages (S3+) use a **complete defconfig** per stage (e.g. `s3/01_earlycon/rp2350_minimal_defconfig`, mirrored to the kernel tree `arch/riscv/configs/`) built via `make kernel-s3-01` — no merge_config fragments.
+- Kernel config fragments live in `s2/` (QEMU) and contain plain `CONFIG_*` lines; real-board stages (S3+) use a **complete defconfig** per stage, kept **project-local only** (e.g. `s3/00_amowall/rp2350_amowall_defconfig`, `s3/01_earlycon/rp2350_minimal_defconfig`) — the Makefile seeds the build dir's `.config` from it and runs `olddefconfig` (`make kernel-s3-00` / `make kernel-s3-01`). No merge_config fragments, no new kernel-tree configs.
 - Notes, exercises, and comments are written in Chinese (project language).
 
 ## Testing Guidelines
