@@ -65,24 +65,56 @@ disable irqs, jump to 0x11000000 (a0=0 hartid, a1=0x11700000 dtb)
 
 之后**内核零输出**（预期复现点：PSRAM AMO 墙，早于 earlycon）。
 
-### 4. GDB 看第一现场（复现 AMO 墙）
+> **确认静默卡死后，下一步就是拿出调试器抓第一现场**——不要只停留在"没输出"，
+> 用 GDB 停在内核异常入口，确认 mcause/mepc 是不是 AMO 墙（下面第 4 节）。
+
+### 4. 调试器抓第一现场（复现 AMO 墙的关键动作）
 
 ```sh
-# 终端 1
+# 终端 1：启动 OpenOCD（RP2350 RISC-V 核 0）
 sudo openocd -f interface/cmsis-dap.cfg -c "set USE_CORE rv0" -f target/rp2350.cfg -c "adapter speed 2000"
-# 终端 2
-gdb-multiarch ../../linux-7.2/build-rv32/vmlinux   # 或 riscv32-unknown-elf-gdb
+# 终端 2：连 GDB（用本工程的 vmlinux：build-rv32-00）
+gdb-multiarch ../../linux-7.2/build-rv32-00/vmlinux   # 或 riscv32-unknown-elf-gdb
+```
+
+```gdb
+(gdb) set architecture riscv:rv32      # 必须显式设 rv32，否则报 "bfd requires xlen 8"！
 (gdb) target remote localhost:3333
-(gdb) hbreak *0x11195378       # handle_exception 入口（随内核构建变化，用 nm 查）
+(gdb) hbreak *0x11196718               # handle_exception 入口（本内核实测值）
+                                       # 换内核后重新查：nm build-rv32-00/vmlinux | grep handle_exception
+                                       # 运行时地址 = link 地址 + 0x11000000
 (gdb) monitor reset halt
 (gdb) continue
-# 停住后：
+```
+
+停住后（第一次异常）：
+
+```sh
 (gdb) monitor reg mcause       # 一次只查一个寄存器！
 (gdb) monitor reg mepc
+(gdb) monitor reg mtval
 (gdb) x/4i $mepc
 ```
 
-预期：`mcause=0x7`，`mepc` = `amoor.w.aqrl` 指令（`set_cpu_online` 写 `__cpu_online_mask`，PSRAM）。
+预期（本内核实测）：
+
+```
+mcause = 0x00000007                  # Store/AMO 访问 fault
+mepc   = 0x1100e94a                  # set_cpu_online 里的 amoor.w.aqrl a4,a3,(a5)
+mtval  = 0x00000000                  # RP2350 对 AMO fault 不写 mtval（以 mepc 为准）
+```
+
+`x/4i $mepc` 应看到：
+
+```
+0x1100e94a:  amoor.w.aqrl    a4,a3,(a5)
+```
+
+这就是 PSRAM AMO 墙的第一现场：内核第一条原子操作（写 `__cpu_online_mask`）触发 mcause=7，
+早于任何 printk/earlycon，所以真板完全静默。抓到这一现场，S3-00 就算完整闭环。
+
+> 调试小坑：OpenOCD halt/step 会弄脏 `mscratch`（GDB 里看到 `mscratch=0x1120f3c0` 是假象）；
+> 正常启动时 mscratch=0。本工程"静默"排查方法论见 `notes/学习记录/S3-01 · 从AMO墙到earlycon出字：完整踩坑历程.md`。
 
 ### 5. amo-test 对照实验（确认硬件行为）
 
