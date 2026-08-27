@@ -5,9 +5,10 @@ PICO_SDK_PATH ?= /home/developer/raspberrypi/pico-sdk
 QEMU_SCRIPT := s2/run-qemu.sh
 
 .PHONY: all clean qemu test flash flash-bootloader flash-fake flash-psram-test flash-amo-test flash-xip-stress \
-        kernel-s3-00 kernel-s3-01 \
+        kernel-s3-00 kernel-s3-01 kernel-s3-02 \
         flash-s3-00-bootloader flash-s3-00-kernel flash-s3-00-dtb \
-        flash-s3-01-bootloader flash-s3-01-kernel flash-s3-01-dtb
+        flash-s3-01-bootloader flash-s3-01-kernel flash-s3-01-dtb \
+        flash-s3-02-bootloader flash-s3-02-kernel flash-s3-02-dtb
 
 all: $(BUILD_DIR)/build.ninja
 	ninja -C $(BUILD_DIR)
@@ -81,6 +82,23 @@ $(BUILD_DIR)/s3/01_earlycon/rp2350a-minimal.dtb: s3/01_earlycon/dts/rp2350a-mini
 	    -o $(BUILD_DIR)/s3/01_earlycon/rp2350a-minimal.dts.pre $<
 	dtc -I dts -O dtb -o $@ $(BUILD_DIR)/s3/01_earlycon/rp2350a-minimal.dts.pre
 
+# ---- S3 工程 3 (02_timer：定时器链验收) ----
+flash-s3-02-bootloader: all
+	picotool load -fu --ignore-partitions $(BUILD_DIR)/s3/02_timer/s3-02-bootloader.uf2
+
+flash-s3-02-kernel: all
+	# 带 timer-rp2350 驱动 + cpu-intc 的新内核 → 分区 0
+	picotool load -fv -p 0 -t bin s3/02_timer/kernel-Image
+
+flash-s3-02-dtb: $(BUILD_DIR)/s3/02_timer/rp2350a-minimal.dtb
+	picotool load -fv -p 1 -t bin $(BUILD_DIR)/s3/02_timer/rp2350a-minimal.dtb
+
+$(BUILD_DIR)/s3/02_timer/rp2350a-minimal.dtb: s3/02_timer/dts/rp2350a-minimal.dts s3/02_timer/dts/rp2350a.dtsi | $(BUILD_DIR)
+	mkdir -p $(BUILD_DIR)/s3/02_timer
+	cpp -nostdinc -I s3/02_timer/dts -undef -x assembler-with-cpp \
+	    -o $(BUILD_DIR)/s3/02_timer/rp2350a-minimal.dts.pre $<
+	dtc -I dts -O dtb -o $@ $(BUILD_DIR)/s3/02_timer/rp2350a-minimal.dts.pre
+
 # ---- 内核构建（linux-7.2 源码树，out-of-tree 构建目录）----
 # 用法：改完内核源码后直接 `make kernel-s3-00` / `make kernel-s3-01`，
 #       自动完成 配置 → 编译 → 拷贝到对应工程目录。
@@ -122,6 +140,18 @@ kernel-s3-01: $(KERNEL_BUILD)/.config
 	cd $(KERNEL_SRC) && make ARCH=riscv CROSS_COMPILE=$(KERNEL_CROSS) O=build-rv32 -j$$(nproc) Image
 	cp $(KERNEL_BUILD)/arch/riscv/boot/Image s3/01_earlycon/kernel-Image
 	sha256sum s3/01_earlycon/kernel-Image
+
+# ---- S3-02（定时器链：cpu-intc + timer-rp2350）：build-rv32-02 ----
+$(KERNEL_SRC)/build-rv32-02/.config: $(CURDIR)/s3/02_timer/rp2350_minimal_defconfig
+	mkdir -p $(KERNEL_SRC)/build-rv32-02
+	cp $(CURDIR)/s3/02_timer/rp2350_minimal_defconfig $(KERNEL_SRC)/build-rv32-02/.config
+	cd $(KERNEL_SRC) && make ARCH=riscv CROSS_COMPILE=$(KERNEL_CROSS) O=build-rv32-02 olddefconfig
+
+# 编译内核 Image 并存档到 S3-02 工程（烧录用 make flash-s3-02-kernel）
+kernel-s3-02: $(KERNEL_SRC)/build-rv32-02/.config
+	cd $(KERNEL_SRC) && make ARCH=riscv CROSS_COMPILE=$(KERNEL_CROSS) O=build-rv32-02 -j$$(nproc) Image
+	cp $(KERNEL_SRC)/build-rv32-02/arch/riscv/boot/Image s3/02_timer/kernel-Image
+	sha256sum s3/02_timer/kernel-Image
 
 # 兼容旧习惯：flash = 烧 bootloader
 flash: flash-bootloader

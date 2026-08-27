@@ -1,0 +1,61 @@
+// SPDX-License-Identifier: GPL-2.0
+/*
+ * RP2350A SoC 级设备树（工程按需增量，不一次性堆全）。
+ *
+ * 02_timer 在前一关基础上新增：
+ *   - /cpus timebase-frequency = <1000000>（1MHz tick，来自 clk_ref 12MHz/12，
+ *     与 sys_clock 解耦——bootloader 改 CPU 频率不影响时间基准）
+ *   - cpu@0 的 riscv,cpu-intc（CPU 本地中断控制器，过 init_IRQ panic）
+ *   - soc 下 timer@d0000000（RP2350 SIO 内 RISC-V 平台定时器，
+ *     compatible = "raspberrypi,rp2350-timer"，timer-rp2350 驱动）
+ * 仍故意不加：Xh3irq 中断控制器（下一关）、serial 的 clocks/interrupts
+ * （真 console 后续工程）。
+ */
+/dts-v1/;
+
+/ {
+	#address-cells = <1>;
+	#size-cells = <1>;
+
+	cpus {
+		#address-cells = <1>;
+		#size-cells = <0>;
+		timebase-frequency = <1000000>;
+
+		cpu@0 {
+			device_type = "cpu";
+			reg = <0>;
+			compatible = "riscv";
+			riscv,isa-base = "rv32i";
+			riscv,isa-extensions = "i", "m", "a", "c", "zicsr",
+						 "zifencei", "zba", "zbb", "zbs",
+						 "zbkb", "zca", "zcb", "zcmp";
+			riscv,isa = "rv32imac_zicsr_zifencei_zba_zbb_zbs_zbkb_zca_zcb_zcmp";
+
+			cpu_intc: interrupt-controller {
+				#interrupt-cells = <1>;
+				compatible = "riscv,cpu-intc";
+				interrupt-controller;
+			};
+		};
+	};
+
+	soc {
+		#address-cells = <1>;
+		#size-cells = <1>;
+		compatible = "simple-bus";
+		ranges;
+
+		timer@d0000000 {
+			compatible = "raspberrypi,rp2350-timer";
+			reg = <0xd0000000 0x1000>;
+			interrupts-extended = <&cpu_intc 7>;
+		};
+
+		serial@40070000 {
+			compatible = "arm,pl011";
+			reg = <0x40070000 0x1000>;
+			/* 真 console 需要 clocks/interrupts，留给后续工程。 */
+		};
+	};
+};

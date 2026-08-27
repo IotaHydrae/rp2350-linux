@@ -1,0 +1,27 @@
+// SPDX-License-Identifier: GPL-2.0
+/*
+ * RP2350A-Minimal 板级设备树（自研板：16MB flash、8MB PSRAM CS1=GPIO0、
+ * UART0 GP16/17 @115200）。
+ *
+ * 02_timer：在前一关基础上加 timebase-frequency + riscv,cpu-intc +
+ * SIO 平台定时器节点，验收 = init_IRQ panic 消失 + jiffies 动起来。
+ */
+/dts-v1/;
+
+#include "rp2350a.dtsi"
+
+/ {
+	model = "RP2350A-Minimal";
+	compatible = "rp2350a-minimal", "raspberrypi,rp2350";
+
+	chosen {
+		/* 显式 earlycon 地址：PL011 @ 0x40070000，32 位寄存器访问。
+		 * 真 console（ttyAMA0 接管）需要 clocks，留给后续工程。 */
+		bootargs = "earlycon=pl011,mmio32,0x40070000,115200n8";
+	};
+
+	memory@11000000 {
+		device_type = "memory";
+		reg = <0x11000000 0x00800000>;
+	};
+};
