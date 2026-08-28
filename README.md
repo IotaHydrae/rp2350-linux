@@ -52,6 +52,8 @@ sudo apt install gcc-riscv64-linux-gnu
 riscv64-linux-gnu-gcc --version              # 验证
 ```
 
+> **为什么"riscv64"工具链能编 rv32 内核？** RISC-V 工具链是 multilib 的：`riscv64-linux-gnu-gcc` 既能输出 64 位也能输出 32 位代码。编译内核时，构建系统看到 `CONFIG_ARCH_RV32I` 会自动加 `-march=rv32... -mabi=ilp32`，把编译器"降级"成 32 位模式。另外内核**不链接 libc**（它自己就是操作系统，裸机起步），所以工具链带不带 Linux 标准库都不影响——选它只是因为是内核开发的标准选择、`apt` 一条命令装好。bootloader 的 `riscv32-unknown-elf` 也能编内核，但那是裸机工具链，少 Linux 相关的头文件与约定，不是主路。
+
 **③ 内核源码（kernel.org 下载 linux-7.2）**
 
 ```bash
