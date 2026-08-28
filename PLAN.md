@@ -10,7 +10,7 @@
 
 - 烧录：电脑编译 bootloader + 镜像，用 picotool / openocd 烧进 16MB flash。
 - 上电：bootloader 初始化 PSRAM → 把镜像从 flash 拷到 `0x11000000` → 跳转 → 串口看到每步日志。
-- 里程碑：S1 假镜像链路 → S3-00 真内核在板子串口打出第一行字并**故意看到 panic**（init_IRQ "No interrupt controller found."）→ S3-01 earlycon 出字 + 故意 panic 验收 → S3-02 定时器链（jiffies 动）→ S3-03 Xh3irq 外设中断 → S3-04 真 console ✅ → **S3-05 进 shell ✅（`# hello` → `Hello, world!`）** → **S4 文件系统篇：S4-00 bootloader 拷 initramfs ✅（rootfs 独立烧录）** → S4-01 文件系统正题。
+- 里程碑：S1 假镜像链路 → S3-00 真内核在板子串口打出第一行字并**故意看到 panic**（init_IRQ "No interrupt controller found."）→ S3-01 earlycon 出字 + 故意 panic 验收 → S3-02 定时器链（jiffies 动）→ S3-03 Xh3irq 外设中断 → S3-04 真 console ✅ → **S3-05 进 shell ✅** → **S4 文件系统篇：S4-00 bootloader 拷 initramfs ✅（rootfs 独立烧录）→ S4-01 shell 调用外部程序 ✅（NOMMU 首次进程创建）** → S4-02 文件系统正题。
 
 ## 形状与分工（已拍）
 
