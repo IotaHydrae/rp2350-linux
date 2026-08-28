@@ -8,9 +8,11 @@
 #   3. panic Call Trace 里的裸地址 [<0x...>] 批量翻译成符号（给 vmlinux 时）
 #
 # 用法：
-#   scripts/log-analyze.sh <日志文件> [vmlinux] [末尾行数]
+#   scripts/log-analyze.sh <日志文件> [vmlinux] [末尾行数] [基址]
 #     vmlinux 可选：给了就把 Call Trace 地址翻译成函数名
 #     末尾行数可选，默认 30
+#     基址可选，默认 0x11000000（内核加载地址；日志里的地址是 PSRAM 加载地址，
+#      翻译前要减基址转成 vmlinux 符号表偏移）
 #
 # 示例：
 #   scripts/log-analyze.sh notes/实验日志/2026-08-28_S3-03外设中断验收.md \
@@ -21,6 +23,7 @@ set -euo pipefail
 LOG="${1:?用法: log-analyze.sh <日志文件> [vmlinux] [末尾行数]}"
 VMLINUX="${2:-}"
 TAIL_N="${3:-30}"
+BASE="${4:-0x11000000}"
 
 if [ ! -f "$LOG" ]; then
 	echo "错误: 找不到日志文件: $LOG" >&2
@@ -43,9 +46,17 @@ if [ -n "$VMLINUX" ] && [ -f "$VMLINUX" ]; then
 		| tr -d '[<>]' \
 		| sort -u \
 		| while read -r addr; do
-			sym=$(riscv64-linux-gnu-addr2line -e "$VMLINUX" -f -C "0x${addr}" 2>/dev/null \
+			a=$((16#$addr))
+			b=$((BASE))
+			if [ "$a" -ge "$b" ]; then
+				v=$((a - b))     # PSRAM 加载地址 -> vmlinux 偏移
+			else
+				v=$a             # 本来就是偏移则直接用
+			fi
+			sym=$(riscv64-linux-gnu-addr2line -e "$VMLINUX" -f -C \
+				"$(printf '0x%x' "$v")" 2>/dev/null \
 				| head -1)
-			printf "  0x%s -> %s\n" "$addr" "${sym:-?}"
+			printf "  0x%s -> %s\n" "$addr" "${sym:-??}"
 		done
 else
 	echo
