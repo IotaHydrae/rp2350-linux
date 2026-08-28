@@ -5,10 +5,11 @@ PICO_SDK_PATH ?= /home/developer/raspberrypi/pico-sdk
 QEMU_SCRIPT := s2/run-qemu.sh
 
 .PHONY: all clean qemu test flash flash-bootloader flash-fake flash-psram-test flash-amo-test flash-xip-stress \
-        kernel-s3-00 kernel-s3-01 kernel-s3-02 \
+        kernel-s3-00 kernel-s3-01 kernel-s3-02 kernel-s3-03 \
         flash-s3-00-bootloader flash-s3-00-kernel flash-s3-00-dtb \
         flash-s3-01-bootloader flash-s3-01-kernel flash-s3-01-dtb \
-        flash-s3-02-bootloader flash-s3-02-kernel flash-s3-02-dtb
+        flash-s3-02-bootloader flash-s3-02-kernel flash-s3-02-dtb \
+        flash-s3-03-bootloader flash-s3-03-kernel flash-s3-03-dtb
 
 all: $(BUILD_DIR)/build.ninja
 	ninja -C $(BUILD_DIR)
@@ -99,6 +100,23 @@ $(BUILD_DIR)/s3/02_timer/rp2350a-minimal.dtb: s3/02_timer/dts/rp2350a-minimal.dt
 	    -o $(BUILD_DIR)/s3/02_timer/rp2350a-minimal.dts.pre $<
 	dtc -I dts -O dtb -o $@ $(BUILD_DIR)/s3/02_timer/rp2350a-minimal.dts.pre
 
+# ---- S3 工程 4 (03_irq：Xh3irq 外设中断验收) ----
+flash-s3-03-bootloader: all
+	picotool load -fu --ignore-partitions $(BUILD_DIR)/s3/03_irq/s3-03-bootloader.uf2
+
+flash-s3-03-kernel: all
+	# 带 xh3irq 驱动的新内核 → 分区 0
+	picotool load -fv -p 0 -t bin s3/03_irq/kernel-Image
+
+flash-s3-03-dtb: $(BUILD_DIR)/s3/03_irq/rp2350a-minimal.dtb
+	picotool load -fv -p 1 -t bin $(BUILD_DIR)/s3/03_irq/rp2350a-minimal.dtb
+
+$(BUILD_DIR)/s3/03_irq/rp2350a-minimal.dtb: s3/03_irq/dts/rp2350a-minimal.dts s3/03_irq/dts/rp2350a.dtsi | $(BUILD_DIR)
+	mkdir -p $(BUILD_DIR)/s3/03_irq
+	cpp -nostdinc -I s3/03_irq/dts -undef -x assembler-with-cpp \
+	    -o $(BUILD_DIR)/s3/03_irq/rp2350a-minimal.dts.pre $<
+	dtc -I dts -O dtb -o $@ $(BUILD_DIR)/s3/03_irq/rp2350a-minimal.dts.pre
+
 # ---- 内核构建（linux-7.2 源码树，out-of-tree 构建目录）----
 # 用法：改完内核源码后直接 `make kernel-s3-00` / `make kernel-s3-01`，
 #       自动完成 配置 → 编译 → 拷贝到对应工程目录。
@@ -152,6 +170,18 @@ kernel-s3-02: $(KERNEL_SRC)/build-rv32-02/.config
 	cd $(KERNEL_SRC) && make ARCH=riscv CROSS_COMPILE=$(KERNEL_CROSS) O=build-rv32-02 -j$$(nproc) Image
 	cp $(KERNEL_SRC)/build-rv32-02/arch/riscv/boot/Image s3/02_timer/kernel-Image
 	sha256sum s3/02_timer/kernel-Image
+
+# ---- S3-03（Xh3irq 外设中断）：build-rv32-03 ----
+$(KERNEL_SRC)/build-rv32-03/.config: $(CURDIR)/s3/03_irq/rp2350_minimal_defconfig
+	mkdir -p $(KERNEL_SRC)/build-rv32-03
+	cp $(CURDIR)/s3/03_irq/rp2350_minimal_defconfig $(KERNEL_SRC)/build-rv32-03/.config
+	cd $(KERNEL_SRC) && make ARCH=riscv CROSS_COMPILE=$(KERNEL_CROSS) O=build-rv32-03 olddefconfig
+
+# 编译内核 Image 并存档到 S3-03 工程（烧录用 make flash-s3-03-kernel）
+kernel-s3-03: $(KERNEL_SRC)/build-rv32-03/.config
+	cd $(KERNEL_SRC) && make ARCH=riscv CROSS_COMPILE=$(KERNEL_CROSS) O=build-rv32-03 -j$$(nproc) Image
+	cp $(KERNEL_SRC)/build-rv32-03/arch/riscv/boot/Image s3/03_irq/kernel-Image
+	sha256sum s3/03_irq/kernel-Image
 
 # 兼容旧习惯：flash = 烧 bootloader
 flash: flash-bootloader

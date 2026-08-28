@@ -1,0 +1,26 @@
+// SPDX-License-Identifier: GPL-2.0
+/*
+ * RP2350A-Minimal 板级设备树（自研板：16MB flash、8MB PSRAM CS1=GPIO0、
+ * UART0 GP16/17 @115200）。
+ *
+ * 03_irq：Xh3irq 外设中断链——UART0 RX 中断验收。
+ */
+/dts-v1/;
+
+#include "rp2350a.dtsi"
+
+/ {
+	model = "RP2350A-Minimal";
+	compatible = "rp2350a-minimal", "raspberrypi,rp2350";
+
+	chosen {
+		/* earlycon 保持；pl011 驱动 probe 后会注册 console 自动接管
+		 * （serial_core 无条件 register_console），日志切到 ttyAMA0。 */
+		bootargs = "earlycon=pl011,mmio32,0x40070000,115200n8";
+	};
+
+	memory@11000000 {
+		device_type = "memory";
+		reg = <0x11000000 0x00800000>;
+	};
+};
