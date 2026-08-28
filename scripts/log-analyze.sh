@@ -40,8 +40,10 @@ grep -oP '\[<[0-9a-fA-F]+>\]' "$LOG" \
 		info=$(riscv64-linux-gnu-addr2line -e "$VMLINUX" -f -C \
 			"$(printf '0x%x' "$v")" 2>/dev/null)
 		func=$(printf '%s\n' "$info" | sed -n '1p')
+		# addr2line 会输出 .../build-rv32-03/../arch/... 这种带 .. 的路径，
+		# 去掉 <dir>/.. 段（保留其后的 '/'，否则会把两个目录名焊在一起）
 		loc=$(printf '%s\n' "$info" | sed -n '2p' \
-			| sed -E 's#/[^/]+/\.\./##g')
+			| sed -E 's#/[^/]+/\.\.##g')
 		[ "$loc" = "??:?" ] && loc=""
 		printf "  0x%s  %s  %s\n" "$addr" "${func:-??}" "$loc"
 	done
