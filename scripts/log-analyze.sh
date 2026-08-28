@@ -4,25 +4,22 @@
 #
 # 功能：
 #   1. 异常/告警关键词行（WARNING / panic / BUG / Oops / mcause 等）
-#   2. 日志末尾 N 行（看卡死前的现场）
-#   3. Call Trace 裸地址批量翻译成 函数名 + 源文件:行号
+#   2. Call Trace 裸地址批量翻译成 函数名 + 源文件:行号
 #      （vmlinux 开了 DEBUG_INFO 就有行号；地址自动减基址）
 #
 # 用法：
-#   scripts/log-analyze.sh <vmlinux> <日志文件> [末尾行数] [基址]
-#     末尾行数可选，默认 30
+#   scripts/log-analyze.sh <vmlinux> <日志文件> [基址]
 #     基址可选，默认 0x11000000
 #
 # 示例：
 #   scripts/log-analyze.sh /home/developer/linux-7.2/build-rv32-03/vmlinux \
-#       /tmp/kern.log 20
+#       /tmp/kern.log
 
 set -euo pipefail
 
-VMLINUX="${1:?用法: log-analyze.sh <vmlinux> <日志文件> [末尾行数] [基址]}"
-LOG="${2:?用法: log-analyze.sh <vmlinux> <日志文件> [末尾行数] [基址]}"
-TAIL_N="${3:-30}"
-BASE="${4:-0x11000000}"
+VMLINUX="${1:?Usage: log-analyze.sh <vmlinux> <logfile> [base]}"
+LOG="${2:?Usage: log-analyze.sh <vmlinux> <logfile> [base]}"
+BASE="${3:-0x11000000}"
 
 [ -f "$VMLINUX" ] || { echo "Error: vmlinux not found: $VMLINUX" >&2; exit 1; }
 [ -f "$LOG" ] || { echo "Error: log file not found: $LOG" >&2; exit 1; }
@@ -30,10 +27,6 @@ BASE="${4:-0x11000000}"
 echo "## Warnings/errors"
 grep -nE 'WARNING:|Kernel panic|BUG:|Oops|Unable to handle|mcause|mepc|mtval' \
 	"$LOG" || true
-
-echo
-echo "## Last ${TAIL_N} lines"
-tail -n "$TAIL_N" "$LOG"
 
 echo
 echo "## Call Trace"

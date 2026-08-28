@@ -52,7 +52,7 @@ pc=$(grep -oP '^\s*pc\s+0x[0-9a-fA-F]+' "$TMP/out.txt" | grep -oP '0x[0-9a-fA-F]
 if [ -n "$pc" ]; then
 	echo
 	echo "===== PC lookup ====="
-	"$SCRIPT_DIR/pc-locate.sh" "$pc" "$VMLINUX"
+	"$SCRIPT_DIR/pc-locate.sh" "$VMLINUX" "$pc"
 else
-	echo "(could not extract pc from GDB output; run scripts/pc-locate.sh <pc> $VMLINUX manually)"
+	echo "(could not extract pc from GDB output; run scripts/pc-locate.sh $VMLINUX <pc> manually)"
 fi

@@ -8,19 +8,19 @@
 #   3. 函数边界 + 该地址附近的反汇编片段（带指令字节）
 #
 # 用法：
-#   tools/pc-locate.sh <pc> <vmlinux> [基址]
+#   scripts/pc-locate.sh <vmlinux> <pc> [基址]
 #     pc      可以是 PSRAM 加载地址（0x1108b7cc，默认基址 0x11000000）
 #             也可以是 vmlinux 偏移（0x8b7cc，脚本自动识别）
 #     vmlinux 内核符号文件（如 /home/developer/linux-7.2/build-rv32-03/vmlinux）
 #     [基址]  可选，默认 0x11000000（本项目内核加载地址）
 #
 # 示例：
-#   tools/pc-locate.sh 0x1108b7cc /home/developer/linux-7.2/build-rv32-03/vmlinux
+#   scripts/pc-locate.sh /home/developer/linux-7.2/build-rv32-03/vmlinux 0x1108b7cc
 
 set -euo pipefail
 
-PC_ARG="${1:?用法: pc-locate.sh <pc> <vmlinux> [基址]}"
-VMLINUX="${2:?用法: pc-locate.sh <pc> <vmlinux> [基址]}"
+VMLINUX="${1:?Usage: pc-locate.sh <vmlinux> <pc> [base]}"
+PC_ARG="${2:?Usage: pc-locate.sh <vmlinux> <pc> [base]}"
 BASE="${3:-0x11000000}"
 
 NM=riscv64-linux-gnu-nm
