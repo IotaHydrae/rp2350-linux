@@ -10,7 +10,7 @@
 
 - 烧录：电脑编译 bootloader + 镜像，用 picotool / openocd 烧进 16MB flash。
 - 上电：bootloader 初始化 PSRAM → 把镜像从 flash 拷到 `0x11000000` → 跳转 → 串口看到每步日志。
-- 里程碑：S1 假镜像链路 → S3-00 真内核在板子串口打出第一行字并**故意看到 panic**（init_IRQ "No interrupt controller found."）→ S3-01 earlycon 出字 + 故意 panic 验收 → S3-02 定时器链（jiffies 动）→ S3-03 Xh3irq 外设中断 → S3-04 真 console ✅ → **S3-05 进 shell ✅** → **S4 文件系统篇：S4-00 ✅（rootfs 独立烧录）→ S4-01 ✅（shell 调用外部程序）→ S4-02 ✅（ext2 真实文件系统 on brd）** → S4-03 根切 ext2（legacy initrd + root=/dev/ram0）。
+- 里程碑：S1 假镜像链路 → S3-00 真内核在板子串口打出第一行字并**故意看到 panic**（init_IRQ "No interrupt controller found."）→ S3-01 earlycon 出字 + 故意 panic 验收 → S3-02 定时器链（jiffies 动）→ S3-03 Xh3irq 外设中断 → S3-04 真 console ✅ → **S3-05 进 shell ✅** → **S4 文件系统篇：S4-00 ✅（rootfs 独立烧录）→ S4-01 ✅（shell 调用外部程序）→ S4-02 ✅（ext2 真实文件系统 on brd）→ S4-03 ✅（根切 ext2）→ S4-04 🔄（busybox 移植）→ S4-05+（fs 延伸，待定）** → **S5 裁剪优化（bootloader 频率、内核压缩、zram，系统更轻快）** → **S6 RP2350 外设控制器（i2c/spi/watchdog/dma/pio，i2c/spi 用传感器/屏幕验收）** → **S7 双核 AMP + rpmsg（阶段拆分待定）** → **S8 电源管理（PM，范围待拍）**。
 
 ## 形状与分工（已拍）
 
@@ -36,6 +36,8 @@
 - 主力板：自研 RP2350A-Minimal（RP2350A 封装，16MB flash，8MB PSRAM，CS1 = GPIO0，已实测正常）。自写 `boards/rp2350a_minimal.h`。
 - 挂起板：Waveshare RP2350B-Plus-W（RP2350B，16MB flash，8MB PSRAM，CS1 = GPIO47）——两条驱动都能读 PSRAM ID 但写地址空间卡死，已换过 PSRAM 芯片仍复现，疑时序问题，等用户研究后再回来处理。配置保留在 `boards/waveshare_rp2350b_plus_w.h`。
 - 串口引脚/波特率：沿用用户工程 UART0 GP16/17 @ 115200（与内核 console 保持一致）。
+- **双核路线（2026-08-28 用户拍板）**：SMP 不做（riscv NOMMU M-mode 无 MMU/SBI，Linux SMP 机制按 MMU+SBI 设计，等于重写整套）；AMP 可行——bootloader 起 core1 跑裸机/RTOS 程序，Linux（core0）用 rpmsg 通信。硬件基础：SIO 双邮箱 FIFO + 32 自旋锁 + 每核 MTIMECMP + Xh3irq 每核路由；共享地址空间需划分 SRAM/PSRAM 地盘。
+- **S8 PM 范围建议（2026-08-28）**：候选 = CPU idle（WFI+tickless 可观察）、CCF 时钟树（时钟交回内核，接 S5 频率调整）、DVFS（测电流）；不建议一上来做 suspend/deep sleep（唤醒源/USB/串口保持坑深难验收）。具体范围开工时拍。
 
 ## 怎么跑（构建/部署级，随阶段补充）
 
