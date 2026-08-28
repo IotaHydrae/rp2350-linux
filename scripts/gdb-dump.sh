@@ -9,7 +9,7 @@
 # 然后用 pc-locate.sh 自动把 pc 翻译成符号/源文件/函数。
 #
 # 用法：
-#   tools/gdb-dump.sh <vmlinux> [gdb 端口]
+#   scripts/gdb-dump.sh <vmlinux> [gdb 端口]
 #     vmlinux 如 /home/developer/linux-7.2/build-rv32-03/vmlinux
 #     端口默认 3333
 #
@@ -32,7 +32,10 @@ monitor halt
 printf "\n===== Registers =====\n"
 info registers pc ra sp tp
 printf "\n===== Exception trio (OpenOCD) =====\n"
-monitor reg mcause mepc mtval mstatus
+monitor reg mcause
+monitor reg mepc
+monitor reg mtval
+monitor reg mstatus
 printf "\n===== Disassembly around pc =====\n"
 x/16i $pc-16
 printf "\n===== Backtrace =====\n"
@@ -45,7 +48,7 @@ EOF
 sed -i "s/:PORT/:$PORT/" "$TMP/cmds.gdb"
 
 echo "===== GDB dump ($VMLINUX) ====="
-gdb-multiarch -batch -x "$TMP/cmds.gdb" "$VMLINUX" 2>&1 | tee "$TMP/out.txt"
+gdb-multiarch -q -nh -batch -x "$TMP/cmds.gdb" "$VMLINUX" 2>&1 | tee "$TMP/out.txt"
 
 # ---- 从输出提取 pc，自动定位符号/源文件/反汇编 ----
 pc=$(grep -oP '^\s*pc\s+0x[0-9a-fA-F]+' "$TMP/out.txt" | grep -oP '0x[0-9a-fA-F]+' | head -1)
