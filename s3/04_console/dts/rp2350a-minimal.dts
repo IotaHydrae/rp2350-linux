@@ -1,0 +1,27 @@
+// SPDX-License-Identifier: GPL-2.0
+/*
+ * RP2350A-Minimal 板级设备树（自研板：16MB flash、8MB PSRAM CS1=GPIO0、
+ * UART0 GP16/17 @115200）。
+ *
+ * 04_console：真 console 收尾——ttyAMA0 确定接管日志。
+ */
+/dts-v1/;
+
+#include "rp2350a.dtsi"
+
+/ {
+	model = "RP2350A-Minimal";
+	compatible = "rp2350a-minimal", "raspberrypi,rp2350";
+
+	chosen {
+		/* earlycon 负责最早期打印；console=ttyAMA0 把 ttyAMA0 标记为
+		 * 首选 console——否则恢复 CONFIG_VT 后 dummy/tty0 先注册会抢走
+		 * 日志（S3-02 现象）。有 console= 时 bootconsole 只在首选接管时关。 */
+		bootargs = "earlycon=pl011,mmio32,0x40070000,115200n8 console=ttyAMA0";
+	};
+
+	memory@11000000 {
+		device_type = "memory";
+		reg = <0x11000000 0x00800000>;
+	};
+};

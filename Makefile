@@ -6,10 +6,12 @@ QEMU_SCRIPT := s2/run-qemu.sh
 
 .PHONY: all clean qemu test flash flash-bootloader flash-fake flash-psram-test flash-amo-test flash-xip-stress \
         kernel-s3-00 kernel-s3-01 kernel-s3-02 kernel-s3-03 \
+        kernel-s3-04 \
         flash-s3-00-bootloader flash-s3-00-kernel flash-s3-00-dtb \
         flash-s3-01-bootloader flash-s3-01-kernel flash-s3-01-dtb \
         flash-s3-02-bootloader flash-s3-02-kernel flash-s3-02-dtb \
-        flash-s3-03-bootloader flash-s3-03-kernel flash-s3-03-dtb
+        flash-s3-03-bootloader flash-s3-03-kernel flash-s3-03-dtb \
+        flash-s3-04-bootloader flash-s3-04-kernel flash-s3-04-dtb
 
 all: $(BUILD_DIR)/build.ninja
 	ninja -C $(BUILD_DIR)
@@ -117,6 +119,23 @@ $(BUILD_DIR)/s3/03_irq/rp2350a-minimal.dtb: s3/03_irq/dts/rp2350a-minimal.dts s3
 	    -o $(BUILD_DIR)/s3/03_irq/rp2350a-minimal.dts.pre $<
 	dtc -I dts -O dtb -o $@ $(BUILD_DIR)/s3/03_irq/rp2350a-minimal.dts.pre
 
+# ---- S3 工程 5 (04_console：真 console 收尾) ----
+flash-s3-04-bootloader: all
+	picotool load -fu --ignore-partitions $(BUILD_DIR)/s3/04_console/s3-04-bootloader.uf2
+
+flash-s3-04-kernel: all
+	# 内核与 03 同源（DEBUG_INFO）；VT 定案后由 kernel-s3-04 重建
+	picotool load -fv -p 0 -t bin s3/04_console/kernel-Image
+
+flash-s3-04-dtb: $(BUILD_DIR)/s3/04_console/rp2350a-minimal.dtb
+	picotool load -fv -p 1 -t bin $(BUILD_DIR)/s3/04_console/rp2350a-minimal.dtb
+
+$(BUILD_DIR)/s3/04_console/rp2350a-minimal.dtb: s3/04_console/dts/rp2350a-minimal.dts s3/04_console/dts/rp2350a.dtsi | $(BUILD_DIR)
+	mkdir -p $(BUILD_DIR)/s3/04_console
+	cpp -nostdinc -I s3/04_console/dts -undef -x assembler-with-cpp \
+	    -o $(BUILD_DIR)/s3/04_console/rp2350a-minimal.dts.pre $<
+	dtc -I dts -O dtb -o $@ $(BUILD_DIR)/s3/04_console/rp2350a-minimal.dts.pre
+
 # ---- 内核构建（linux-7.2 源码树，out-of-tree 构建目录）----
 # 用法：改完内核源码后直接 `make kernel-s3-00` / `make kernel-s3-01`，
 #       自动完成 配置 → 编译 → 拷贝到对应工程目录。
@@ -182,6 +201,18 @@ kernel-s3-03: $(KERNEL_SRC)/build-rv32-03/.config
 	cd $(KERNEL_SRC) && make ARCH=riscv CROSS_COMPILE=$(KERNEL_CROSS) O=build-rv32-03 -j$$(nproc) Image
 	cp $(KERNEL_SRC)/build-rv32-03/arch/riscv/boot/Image s3/03_irq/kernel-Image
 	sha256sum s3/03_irq/kernel-Image
+
+# ---- S3-04（真 console 收尾）：build-rv32-04 ----
+$(KERNEL_SRC)/build-rv32-04/.config: $(CURDIR)/s3/04_console/rp2350_minimal_defconfig
+	mkdir -p $(KERNEL_SRC)/build-rv32-04
+	cp $(CURDIR)/s3/04_console/rp2350_minimal_defconfig $(KERNEL_SRC)/build-rv32-04/.config
+	cd $(KERNEL_SRC) && make ARCH=riscv CROSS_COMPILE=$(KERNEL_CROSS) O=build-rv32-04 olddefconfig
+
+# 编译内核 Image 并存档到 S3-04 工程（烧录用 make flash-s3-04-kernel）
+kernel-s3-04: $(KERNEL_SRC)/build-rv32-04/.config
+	cd $(KERNEL_SRC) && make ARCH=riscv CROSS_COMPILE=$(KERNEL_CROSS) O=build-rv32-04 -j$$(nproc) Image
+	cp $(KERNEL_SRC)/build-rv32-04/arch/riscv/boot/Image s3/04_console/kernel-Image
+	sha256sum s3/04_console/kernel-Image
 
 # 兼容旧习惯：flash = 烧 bootloader
 flash: flash-bootloader

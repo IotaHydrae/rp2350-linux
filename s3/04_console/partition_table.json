@@ -1,0 +1,37 @@
+{
+	"version": [1, 0],
+	"unpartitioned": {
+	  "families": ["absolute"],
+	  "permissions": {
+	    "secure": "rw",
+	    "nonsecure": "rw",
+	    "bootloader": "rw"
+	  }
+	},
+	"partitions": [
+	  {
+	    "name": "KERNEL",
+	    "id": 0,
+	    "start": "64K",
+	    "size": "3072K",
+	    "families": ["rp2350-riscv"],
+	    "permissions": {
+	      "secure": "rw",
+	      "nonsecure": "rw",
+	      "bootloader": "rw"
+	    }
+	  },
+	  {
+	    "name": "DTB",
+	    "id": 1,
+	    "start": "3136K",
+	    "size": "64K",
+	    "families": ["absolute"],
+	    "permissions": {
+	      "secure": "rw",
+	      "nonsecure": "rw",
+	      "bootloader": "rw"
+	    }
+	  }
+	]
+}
