@@ -89,4 +89,4 @@ echo
 # ---- 4) 顺带给出 GDB 里可直接用的命令 ----
 echo "GDB 速查:"
 echo "  x/12i \$pc-16        # 反汇编（已连 GDB 时）"
-echo "  info line *0x$off_hex   # 对应源码行（有调试信息时）"
+echo "  info line *$off_hex   # 对应源码行（有调试信息时）"
