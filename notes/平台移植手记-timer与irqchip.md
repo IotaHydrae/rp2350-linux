@@ -30,6 +30,17 @@ flowchart LR
     end
 ```
 
+## 0.5 移植早期的最小顺序（先做什么）
+
+earlycon / timer / irqchip 是移植早期的核心，但**不是并列的，有依赖关系**，按启动时序排：
+
+1. **`riscv,cpu-intc`（最小的 irqchip）最优先**：`init_IRQ()` 启动很早就要 `handle_arch_irq` 非空，否则直接 panic "No interrupt controller found."。它是内核自带驱动，DTB 加节点即可，零代码。这是中断基础设施的最小条件。
+2. **earlycon**：严格说不是驱动，是启动参数（`earlycon=pl011,mmio32,...`）直接激活的早期控制台：绕过驱动框架、MMIO 直写 UART。没有它，内核早期任何问题都是静默的。
+3. **timer（clocksource/clockevent）**：`time_init()` 在 `init_IRQ()` 之后不久需要时间（printk 时间戳 / udelay / jiffies）。**注意 timer 只依赖 cpu-intc（MTIP 直连），不依赖外部 irqchip**——所以它应该、也可以先做。
+4. **外部 irqchip（PLIC / 自定义）**：只有外设需要中断时才要（UART RX、GPIO、DMA…）。纯定时器阶段用不上。
+
+最省事的顺序：**cpu-intc（DTB 一行）→ earlycon（bootargs 一行）→ timer 驱动 → 外部 irqchip 驱动**，每步只加一个变量，出问题好定位。本项目正是 S3-01（earlycon）→ S3-02（cpu-intc + timer）→ S3-03（外部 irqchip Xh3irq）的顺序。比喻：earlycon 是"眼睛"，timer 是"心跳"，irqchip 是"神经"（cpu-intc 是神经的最小骨架，外部 irqchip 是完整网络）。
+
 ## 1. 动手前：摸清新平台要回答的问题
 
 写代码前先读手册，把答案记下来（这些决定驱动怎么写）：
