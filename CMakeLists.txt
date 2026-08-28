@@ -17,3 +17,4 @@ add_subdirectory(s3/01_earlycon)   # S3-01：AMO/amocas 模拟器跨墙，earlyc
 add_subdirectory(s3/02_timer)      # S3-02：定时器链——cpu-intc + timer-rp2350，jiffies 动起来
 add_subdirectory(s3/03_irq)        # S3-03：Xh3irq 外设中断——UART0 RX 中断验收
 add_subdirectory(s3/04_console)    # S3-04：真 console 收尾——ttyAMA0 确定接管日志
+add_subdirectory(s3/05_shell)      # S3-05：进 shell——initramfs + 自写 /init

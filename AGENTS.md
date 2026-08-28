@@ -9,6 +9,7 @@
 - `s3/02_timer/` — S3-02 stage (cpu-intc + timer-rp2350; jiffies run on real board): same layout.
 - `s3/03_irq/` — S3-03 stage (Xh3irq external-interrupt controller; `arm,sbsa-uart` console): same layout.
 - `s3/04_console/` — S3-04 stage (console handover: explicit `console=ttyAMA0` + CONFIG_VT restore test): same layout.
+- `s3/05_shell/` — S3-05 stage (initramfs baked into Image + hand-rolled bFLT `/init` shell): same layout, plus `initramfs.list` (gen_init_cpio manifest), `initramfs-src/` (init.c + init.ld), `initramfs/` (packed bFLT, built by `make init-s3-05`).
 - Rule for S3+ stages: each stage folder keeps its own README, kernel image copy, and complete defconfig so it can be reproduced standalone. New stages must add a sibling folder plus root `CMakeLists.txt` `add_subdirectory` and Makefile `kernel-s3-0x` / `flash-s3-0x-*` targets.
 - `tests/` — test programs (e.g., `psram-test`).
 - `boards/` — custom Pico SDK board headers (`rp2350a_minimal.h`, `waveshare_rp2350b_plus_w.h`).

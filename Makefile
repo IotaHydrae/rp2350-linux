@@ -6,12 +6,13 @@ QEMU_SCRIPT := s2/run-qemu.sh
 
 .PHONY: all clean qemu test flash flash-bootloader flash-fake flash-psram-test flash-amo-test flash-xip-stress \
         kernel-s3-00 kernel-s3-01 kernel-s3-02 kernel-s3-03 \
-        kernel-s3-04 \
+        kernel-s3-04 kernel-s3-05 init-s3-05 \
         flash-s3-00-bootloader flash-s3-00-kernel flash-s3-00-dtb \
         flash-s3-01-bootloader flash-s3-01-kernel flash-s3-01-dtb \
         flash-s3-02-bootloader flash-s3-02-kernel flash-s3-02-dtb \
         flash-s3-03-bootloader flash-s3-03-kernel flash-s3-03-dtb \
-        flash-s3-04-bootloader flash-s3-04-kernel flash-s3-04-dtb
+        flash-s3-04-bootloader flash-s3-04-kernel flash-s3-04-dtb \
+        flash-s3-05-bootloader flash-s3-05-kernel flash-s3-05-dtb
 
 all: $(BUILD_DIR)/build.ninja
 	ninja -C $(BUILD_DIR)
@@ -136,6 +137,34 @@ $(BUILD_DIR)/s3/04_console/rp2350a-minimal.dtb: s3/04_console/dts/rp2350a-minima
 	    -o $(BUILD_DIR)/s3/04_console/rp2350a-minimal.dts.pre $<
 	dtc -I dts -O dtb -o $@ $(BUILD_DIR)/s3/04_console/rp2350a-minimal.dts.pre
 
+# ---- S3 工程 6 (05_shell：进 shell) ----
+flash-s3-05-bootloader: all
+	picotool load -fu --ignore-partitions $(BUILD_DIR)/s3/05_shell/s3-05-bootloader.uf2
+
+flash-s3-05-kernel: all
+	# initramfs 编在 Image 里，必须由 kernel-s3-05 重建后再烧
+	picotool load -fv -p 0 -t bin s3/05_shell/kernel-Image
+
+flash-s3-05-dtb: $(BUILD_DIR)/s3/05_shell/rp2350a-minimal.dtb
+	picotool load -fv -p 1 -t bin $(BUILD_DIR)/s3/05_shell/rp2350a-minimal.dtb
+
+$(BUILD_DIR)/s3/05_shell/rp2350a-minimal.dtb: s3/05_shell/dts/rp2350a-minimal.dts s3/05_shell/dts/rp2350a.dtsi | $(BUILD_DIR)
+	mkdir -p $(BUILD_DIR)/s3/05_shell
+	cpp -nostdinc -I s3/05_shell/dts -undef -x assembler-with-cpp \
+	    -o $(BUILD_DIR)/s3/05_shell/rp2350a-minimal.dts.pre $<
+	dtc -I dts -O dtb -o $@ $(BUILD_DIR)/s3/05_shell/rp2350a-minimal.dts.pre
+
+# ---- S3-05 /init（NOMMU 只能用 FLAT 格式，手搓 bFLT）----
+INITRAMFS_SRC := s3/05_shell/initramfs-src
+INITRAMFS_DIR := s3/05_shell/initramfs
+
+init-s3-05: $(INITRAMFS_SRC)/init.c $(INITRAMFS_SRC)/init.ld scripts/pack-bflt.sh
+	mkdir -p $(BUILD_DIR) $(INITRAMFS_DIR)
+	riscv64-linux-gnu-gcc -march=rv32imac -mabi=ilp32 -fPIC -mno-relax \
+	    -msmall-data-limit=0 -nostdlib -no-pie -O2 -fno-builtin -Wall -Wextra \
+	    -T $(INITRAMFS_SRC)/init.ld -o $(BUILD_DIR)/init-s3-05.elf $(INITRAMFS_SRC)/init.c
+	scripts/pack-bflt.sh $(BUILD_DIR)/init-s3-05.elf $(INITRAMFS_DIR)/init
+
 # ---- 内核构建（linux-7.2 源码树，out-of-tree 构建目录）----
 # 用法：改完内核源码后直接 `make kernel-s3-00` / `make kernel-s3-01`，
 #       自动完成 配置 → 编译 → 拷贝到对应工程目录。
@@ -213,6 +242,21 @@ kernel-s3-04: $(KERNEL_SRC)/build-rv32-04/.config
 	cd $(KERNEL_SRC) && make ARCH=riscv CROSS_COMPILE=$(KERNEL_CROSS) O=build-rv32-04 -j$$(nproc) Image
 	cp $(KERNEL_SRC)/build-rv32-04/arch/riscv/boot/Image s3/04_console/kernel-Image
 	sha256sum s3/04_console/kernel-Image
+
+# ---- S3-05（进 shell：initramfs 编进内核）：build-rv32-05 ----
+$(KERNEL_SRC)/build-rv32-05/.config: $(CURDIR)/s3/05_shell/rp2350_minimal_defconfig
+	mkdir -p $(KERNEL_SRC)/build-rv32-05
+	cp $(CURDIR)/s3/05_shell/rp2350_minimal_defconfig $(KERNEL_SRC)/build-rv32-05/.config
+	cd $(KERNEL_SRC) && make ARCH=riscv CROSS_COMPILE=$(KERNEL_CROSS) O=build-rv32-05 olddefconfig
+
+# 编译内核 Image 并存档到 S3-05 工程（initramfs 编在 Image 里，先跑 init-s3-05）
+kernel-s3-05: $(KERNEL_SRC)/build-rv32-05/.config init-s3-05
+	cd $(KERNEL_SRC) && make ARCH=riscv CROSS_COMPILE=$(KERNEL_CROSS) O=build-rv32-05 -j$$(nproc) Image
+	cp $(KERNEL_SRC)/build-rv32-05/arch/riscv/boot/Image s3/05_shell/kernel-Image
+	@test $$(stat -c %s s3/05_shell/kernel-Image) -le 3145728 || { \
+		echo "ERROR: kernel Image 超过分区 0 的 3MB 上限（见 partition_table.json），需要先扩分区"; \
+		exit 1; }
+	sha256sum s3/05_shell/kernel-Image
 
 # 兼容旧习惯：flash = 烧 bootloader
 flash: flash-bootloader

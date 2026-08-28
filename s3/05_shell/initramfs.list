@@ -1,0 +1,5 @@
+# gen_init_cpio 格式：initramfs 内容清单（CONFIG_INITRAMFS_SOURCE 指向本文件）
+# 语法：<type> <name> <path|mode uid gid ...>
+dir /dev 0755 0 0
+nod /dev/console 0622 0 0 c 5 1
+file /init /home/developer/iotahydrae/rp2350-linux/s3/05_shell/initramfs/init 0755 0 0
