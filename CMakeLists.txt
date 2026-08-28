@@ -19,3 +19,4 @@ add_subdirectory(s3/03_irq)        # S3-03：Xh3irq 外设中断——UART0 RX �
 add_subdirectory(s3/04_console)    # S3-04：真 console 收尾——ttyAMA0 确定接管日志
 add_subdirectory(s3/05_shell)      # S3-05：进 shell——initramfs + 自写 /init
 add_subdirectory(s4/00_boot-initramfs)  # S4-00：bootloader 拷 initramfs——rootfs 独立分区
+add_subdirectory(s4/01_exec-hello)      # S4-01：shell 调用外部程序 /bin/hello（vfork+execve）

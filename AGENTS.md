@@ -11,6 +11,7 @@
 - `s3/04_console/` — S3-04 stage (console handover: explicit `console=ttyAMA0` + CONFIG_VT restore test): same layout.
 - `s3/05_shell/` — S3-05 stage (initramfs baked into Image + hand-rolled bFLT `/init` shell): same layout, plus `initramfs.list` (gen_init_cpio manifest), `initramfs-src/` (init.c + init.ld), `initramfs/` (packed bFLT, built by `make init-s3-05`).
 - `s4/00_boot-initramfs/` — S4-00 stage (rootfs as a separate flash partition: bootloader copies initramfs to a fixed RAM address, DTB declares `linux,initrd-start/end`, kernel has no baked-in initramfs). Same layout, plus `rootfs.cpio` (built by `make rootfs-s4-00`, flashed by `make flash-s4-00-rootfs`).
+- `s4/01_exec-hello/` — S4-01 stage (shell runs an external program: vfork + execve `/bin/hello`, first NOMMU process creation). Same layout, plus `hello-src/` (hello.c) and `hello` (packed bFLT, built by `make hello-s4-01`).
 - Rule for S3+ stages: each stage folder keeps its own README, kernel image copy, and complete defconfig so it can be reproduced standalone. New stages must add a sibling folder plus root `CMakeLists.txt` `add_subdirectory` and Makefile `kernel-s3-0x` / `flash-s3-0x-*` targets.
 - `tests/` — test programs (e.g., `psram-test`).
 - `boards/` — custom Pico SDK board headers (`rp2350a_minimal.h`, `waveshare_rp2350b_plus_w.h`).

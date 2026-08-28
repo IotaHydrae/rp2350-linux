@@ -1,0 +1,7 @@
+# S4-01 rootfs 内容（gen_init_cpio 清单）→ rootfs.cpio → 分区 2 独立烧录
+# /init（make init-s4-01）+ /bin/hello（make hello-s4-01），改 rootfs 只烧分区 2。
+dir /dev 0755 0 0
+nod /dev/console 0622 0 0 c 5 1
+dir /bin 0755 0 0
+file /init /home/developer/iotahydrae/rp2350-linux/s4/01_exec-hello/initramfs/init 0755 0 0
+file /bin/hello /home/developer/iotahydrae/rp2350-linux/s4/01_exec-hello/hello 0755 0 0

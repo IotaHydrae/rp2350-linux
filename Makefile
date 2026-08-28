@@ -8,13 +8,15 @@ QEMU_SCRIPT := s2/run-qemu.sh
         kernel-s3-00 kernel-s3-01 kernel-s3-02 kernel-s3-03 \
         kernel-s3-04 kernel-s3-05 init-s3-05 \
         kernel-s4-00 rootfs-s4-00 init-s4-00 \
+        kernel-s4-01 init-s4-01 hello-s4-01 rootfs-s4-01 \
         flash-s3-00-bootloader flash-s3-00-kernel flash-s3-00-dtb \
         flash-s3-01-bootloader flash-s3-01-kernel flash-s3-01-dtb \
         flash-s3-02-bootloader flash-s3-02-kernel flash-s3-02-dtb \
         flash-s3-03-bootloader flash-s3-03-kernel flash-s3-03-dtb \
         flash-s3-04-bootloader flash-s3-04-kernel flash-s3-04-dtb \
         flash-s3-05-bootloader flash-s3-05-kernel flash-s3-05-dtb \
-        flash-s4-00-bootloader flash-s4-00-kernel flash-s4-00-dtb flash-s4-00-rootfs
+        flash-s4-00-bootloader flash-s4-00-kernel flash-s4-00-dtb flash-s4-00-rootfs \
+        flash-s4-01-bootloader flash-s4-01-kernel flash-s4-01-dtb flash-s4-01-rootfs
 
 all: $(BUILD_DIR)/build.ninja
 	ninja -C $(BUILD_DIR)
@@ -197,6 +199,49 @@ init-s4-00: $(INITRAMFS_S4_SRC)/init.c $(INITRAMFS_S4_SRC)/init.ld scripts/pack-
 	    -T $(INITRAMFS_S4_SRC)/init.ld -o $(BUILD_DIR)/init-s4-00.elf $(INITRAMFS_S4_SRC)/init.c
 	scripts/pack-bflt.sh $(BUILD_DIR)/init-s4-00.elf $(INITRAMFS_S4_DIR)/init
 
+# ---- S4 工程 2 (01_exec-hello：shell 调用外部程序) ----
+flash-s4-01-bootloader: all
+	picotool load -fu --ignore-partitions $(BUILD_DIR)/s4/01_exec-hello/s4-01-bootloader.uf2
+
+flash-s4-01-kernel: all
+	# 内核与 S4-00 相同（S4-01 无内核改动），kernel-Image 为 S4-00 拷贝
+	picotool load -fv -p 0 -t bin s4/01_exec-hello/kernel-Image
+
+flash-s4-01-dtb: $(BUILD_DIR)/s4/01_exec-hello/rp2350a-minimal.dtb
+	picotool load -fv -p 1 -t bin $(BUILD_DIR)/s4/01_exec-hello/rp2350a-minimal.dtb
+
+flash-s4-01-rootfs: rootfs-s4-01
+	picotool load -fv -p 2 -t bin s4/01_exec-hello/rootfs.cpio
+
+$(BUILD_DIR)/s4/01_exec-hello/rp2350a-minimal.dtb: s4/01_exec-hello/dts/rp2350a-minimal.dts s4/01_exec-hello/dts/rp2350a.dtsi | $(BUILD_DIR)
+	mkdir -p $(BUILD_DIR)/s4/01_exec-hello
+	cpp -nostdinc -I s4/01_exec-hello/dts -undef -x assembler-with-cpp \
+	    -o $(BUILD_DIR)/s4/01_exec-hello/rp2350a-minimal.dts.pre $<
+	dtc -I dts -O dtb -o $@ $(BUILD_DIR)/s4/01_exec-hello/rp2350a-minimal.dts.pre
+
+# ---- S4-01 rootfs：/init（shell）+ /bin/hello ----
+INITRAMFS_S41_SRC := s4/01_exec-hello/initramfs-src
+INITRAMFS_S41_DIR := s4/01_exec-hello/initramfs
+HELLO_SRC := s4/01_exec-hello/hello-src
+
+init-s4-01: $(INITRAMFS_S41_SRC)/init.c $(INITRAMFS_S41_SRC)/init.ld scripts/pack-bflt.sh
+	mkdir -p $(BUILD_DIR) $(INITRAMFS_S41_DIR)
+	riscv64-linux-gnu-gcc -march=rv32imac -mabi=ilp32 -fPIC -mno-relax \
+	    -msmall-data-limit=0 -nostdlib -no-pie -O2 -fno-builtin -Wall -Wextra \
+	    -T $(INITRAMFS_S41_SRC)/init.ld -o $(BUILD_DIR)/init-s4-01.elf $(INITRAMFS_S41_SRC)/init.c
+	scripts/pack-bflt.sh $(BUILD_DIR)/init-s4-01.elf $(INITRAMFS_S41_DIR)/init
+
+hello-s4-01: $(HELLO_SRC)/hello.c scripts/pack-bflt.sh
+	mkdir -p $(BUILD_DIR)
+	riscv64-linux-gnu-gcc -march=rv32imac -mabi=ilp32 -fPIC -mno-relax \
+	    -msmall-data-limit=0 -nostdlib -no-pie -O2 -fno-builtin -Wall -Wextra \
+	    -T $(INITRAMFS_S41_SRC)/init.ld -o $(BUILD_DIR)/hello-s4-01.elf $(HELLO_SRC)/hello.c
+	scripts/pack-bflt.sh $(BUILD_DIR)/hello-s4-01.elf s4/01_exec-hello/hello
+
+rootfs-s4-01: init-s4-01 hello-s4-01 $(GEN_INIT_CPIO) s4/01_exec-hello/initramfs.list
+	$(GEN_INIT_CPIO) s4/01_exec-hello/initramfs.list > s4/01_exec-hello/rootfs.cpio
+	sha256sum s4/01_exec-hello/rootfs.cpio
+
 # ---- S3-05 /init（NOMMU 只能用 FLAT 格式，手搓 bFLT）----
 INITRAMFS_SRC := s3/05_shell/initramfs-src
 INITRAMFS_DIR := s3/05_shell/initramfs
@@ -315,6 +360,11 @@ kernel-s4-00: $(KERNEL_SRC)/build-rv32-s4-00/.config
 		echo "ERROR: kernel Image 超过分区 0 的 3MB 上限（见 partition_table.json），需要先扩分区"; \
 		exit 1; }
 	sha256sum s4/00_boot-initramfs/kernel-Image
+
+# S4-01 无内核改动：kernel-Image 复制自 S4-00
+kernel-s4-01: s4/00_boot-initramfs/kernel-Image
+	cp s4/00_boot-initramfs/kernel-Image s4/01_exec-hello/kernel-Image
+	sha256sum s4/01_exec-hello/kernel-Image
 
 # 兼容旧习惯：flash = 烧 bootloader
 flash: flash-bootloader
