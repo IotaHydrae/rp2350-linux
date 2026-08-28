@@ -37,7 +37,7 @@
 - 挂起板：Waveshare RP2350B-Plus-W（RP2350B，16MB flash，8MB PSRAM，CS1 = GPIO47）——两条驱动都能读 PSRAM ID 但写地址空间卡死，已换过 PSRAM 芯片仍复现，疑时序问题，等用户研究后再回来处理。配置保留在 `boards/waveshare_rp2350b_plus_w.h`。
 - 串口引脚/波特率：沿用用户工程 UART0 GP16/17 @ 115200（与内核 console 保持一致）。
 - **双核路线（2026-08-28 用户拍板）**：SMP 不做（riscv NOMMU M-mode 无 MMU/SBI，Linux SMP 机制按 MMU+SBI 设计，等于重写整套）；AMP 可行——bootloader 起 core1 跑裸机/RTOS 程序，Linux（core0）用 rpmsg 通信。硬件基础：SIO 双邮箱 FIFO + 32 自旋锁 + 每核 MTIMECMP + Xh3irq 每核路由；共享地址空间需划分 SRAM/PSRAM 地盘。
-- **S8 PM 范围建议（2026-08-28）**：候选 = CPU idle（WFI+tickless 可观察）、CCF 时钟树（时钟交回内核，接 S5 频率调整）、DVFS（测电流）；不建议一上来做 suspend/deep sleep（唤醒源/USB/串口保持坑深难验收）。具体范围开工时拍。
+- **S8 PM 范围定案（2026-08-28）**：CCF 时钟树默认放 S8 开头当 PM 地基（S6 外设若卡时钟则提前到 S6 开头）；候选 += CPU idle（WFI+tickless 可观察）、DVFS（测电流）；不建议一上来做 suspend/deep sleep（唤醒源/USB/串口保持坑深难验收）。注意：S5 的 bootloader 频率调整是 bootloader 侧 SDK 配 PLL，与内核 CCF 两个层次。
 
 ## 怎么跑（构建/部署级，随阶段补充）
 
