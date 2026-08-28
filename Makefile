@@ -8,7 +8,8 @@ QEMU_SCRIPT := s2/run-qemu.sh
         kernel-s3-00 kernel-s3-01 kernel-s3-02 kernel-s3-03 \
         kernel-s3-04 kernel-s3-05 init-s3-05 \
         kernel-s4-00 rootfs-s4-00 init-s4-00 \
-        kernel-s4-01 init-s4-01 hello-s4-01 rootfs-s4-01 \
+        init-s4-01 hello-s4-01 rootfs-s4-01 \
+        kernel-s4-02 init-s4-02 image-s4-02 rootfs-s4-02 \
         flash-s3-00-bootloader flash-s3-00-kernel flash-s3-00-dtb \
         flash-s3-01-bootloader flash-s3-01-kernel flash-s3-01-dtb \
         flash-s3-02-bootloader flash-s3-02-kernel flash-s3-02-dtb \
@@ -16,7 +17,8 @@ QEMU_SCRIPT := s2/run-qemu.sh
         flash-s3-04-bootloader flash-s3-04-kernel flash-s3-04-dtb \
         flash-s3-05-bootloader flash-s3-05-kernel flash-s3-05-dtb \
         flash-s4-00-bootloader flash-s4-00-kernel flash-s4-00-dtb flash-s4-00-rootfs \
-        flash-s4-01-bootloader flash-s4-01-kernel flash-s4-01-dtb flash-s4-01-rootfs
+        flash-s4-01-bootloader flash-s4-01-kernel flash-s4-01-dtb flash-s4-01-rootfs \
+        flash-s4-02-bootloader flash-s4-02-kernel flash-s4-02-rootfs
 
 all: $(BUILD_DIR)/build.ninja
 	ninja -C $(BUILD_DIR)
@@ -204,8 +206,8 @@ flash-s4-01-bootloader: all
 	picotool load -fu --ignore-partitions $(BUILD_DIR)/s4/01_exec-hello/s4-01-bootloader.uf2
 
 flash-s4-01-kernel: all
-	# 内核与 S4-00 相同（S4-01 无内核改动），kernel-Image 为 S4-00 拷贝
-	picotool load -fv -p 0 -t bin s4/01_exec-hello/kernel-Image
+	# 内核与 S4-00 相同（S4-01 无内核改动），复用 S4-00 的烧录目标
+	picotool load -fv -p 0 -t bin s4/00_boot-initramfs/kernel-Image
 
 flash-s4-01-dtb: $(BUILD_DIR)/s4/01_exec-hello/rp2350a-minimal.dtb
 	picotool load -fv -p 1 -t bin $(BUILD_DIR)/s4/01_exec-hello/rp2350a-minimal.dtb
@@ -241,6 +243,41 @@ hello-s4-01: $(HELLO_SRC)/hello.c scripts/pack-bflt.sh
 rootfs-s4-01: init-s4-01 hello-s4-01 $(GEN_INIT_CPIO) s4/01_exec-hello/initramfs.list
 	$(GEN_INIT_CPIO) s4/01_exec-hello/initramfs.list > s4/01_exec-hello/rootfs.cpio
 	sha256sum s4/01_exec-hello/rootfs.cpio
+
+# ---- S4 工程 3 (02_ext2：ext2 真实文件系统 on brd) ----
+flash-s4-02-bootloader: all
+	picotool load -fu --ignore-partitions $(BUILD_DIR)/s4/02_ext2/s4-02-bootloader.uf2
+
+flash-s4-02-kernel: all
+	# 本关重编内核（开 brd），kernel-Image 在本工程目录
+	picotool load -fv -p 0 -t bin s4/02_ext2/kernel-Image
+
+flash-s4-02-rootfs: rootfs-s4-02
+	picotool load -fv -p 2 -t bin s4/02_ext2/rootfs.cpio
+
+# DTB 与 S4-00 相同：复用 make flash-s4-00-dtb
+
+# ---- S4-02 /init + ext2 镜像 ----
+INITRAMFS_S42_SRC := s4/02_ext2/initramfs-src
+INITRAMFS_S42_DIR := s4/02_ext2/initramfs
+
+init-s4-02: $(INITRAMFS_S42_SRC)/init.c $(INITRAMFS_S42_SRC)/init.ld scripts/pack-bflt.sh
+	mkdir -p $(BUILD_DIR) $(INITRAMFS_S42_DIR)
+	riscv64-linux-gnu-gcc -march=rv32imac -mabi=ilp32 -fPIC -mno-relax \
+	    -msmall-data-limit=0 -nostdlib -no-pie -O2 -fno-builtin -Wall -Wextra \
+	    -T $(INITRAMFS_S42_SRC)/init.ld -o $(BUILD_DIR)/init-s4-02.elf $(INITRAMFS_S42_SRC)/init.c
+	scripts/pack-bflt.sh $(BUILD_DIR)/init-s4-02.elf $(INITRAMFS_S42_DIR)/init
+
+image-s4-02: s4/02_ext2/root-content/hello.txt
+	mkdir -p $(BUILD_DIR)/s4-02-root
+	cp s4/02_ext2/root-content/hello.txt $(BUILD_DIR)/s4-02-root/
+	rm -f s4/02_ext2/rootfs.ext2
+	mkfs.ext2 -q -F -b 1024 -m 0 -d $(BUILD_DIR)/s4-02-root s4/02_ext2/rootfs.ext2 512k
+	sha256sum s4/02_ext2/rootfs.ext2
+
+rootfs-s4-02: init-s4-02 image-s4-02 $(GEN_INIT_CPIO) s4/02_ext2/initramfs.list
+	$(GEN_INIT_CPIO) s4/02_ext2/initramfs.list > s4/02_ext2/rootfs.cpio
+	sha256sum s4/02_ext2/rootfs.cpio
 
 # ---- S3-05 /init（NOMMU 只能用 FLAT 格式，手搓 bFLT）----
 INITRAMFS_SRC := s3/05_shell/initramfs-src
@@ -361,10 +398,19 @@ kernel-s4-00: $(KERNEL_SRC)/build-rv32-s4-00/.config
 		exit 1; }
 	sha256sum s4/00_boot-initramfs/kernel-Image
 
-# S4-01 无内核改动：kernel-Image 复制自 S4-00
-kernel-s4-01: s4/00_boot-initramfs/kernel-Image
-	cp s4/00_boot-initramfs/kernel-Image s4/01_exec-hello/kernel-Image
-	sha256sum s4/01_exec-hello/kernel-Image
+# ---- S4-02（ext2 on brd）：build-rv32-s4-02 ----
+$(KERNEL_SRC)/build-rv32-s4-02/.config: $(CURDIR)/s4/02_ext2/rp2350_minimal_defconfig
+	mkdir -p $(KERNEL_SRC)/build-rv32-s4-02
+	cp $(CURDIR)/s4/02_ext2/rp2350_minimal_defconfig $(KERNEL_SRC)/build-rv32-s4-02/.config
+	cd $(KERNEL_SRC) && make ARCH=riscv CROSS_COMPILE=$(KERNEL_CROSS) O=build-rv32-s4-02 olddefconfig
+
+kernel-s4-02: $(KERNEL_SRC)/build-rv32-s4-02/.config
+	cd $(KERNEL_SRC) && make ARCH=riscv CROSS_COMPILE=$(KERNEL_CROSS) O=build-rv32-s4-02 -j$$(nproc) Image
+	cp $(KERNEL_SRC)/build-rv32-s4-02/arch/riscv/boot/Image s4/02_ext2/kernel-Image
+	@test $$(stat -c %s s4/02_ext2/kernel-Image) -le 3145728 || { \
+		echo "ERROR: kernel Image 超过分区 0 的 3MB 上限（见 partition_table.json），需要先扩分区"; \
+		exit 1; }
+	sha256sum s4/02_ext2/kernel-Image
 
 # 兼容旧习惯：flash = 烧 bootloader
 flash: flash-bootloader

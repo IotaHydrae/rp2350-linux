@@ -1,0 +1,6 @@
+# S4-02 rootfs 内容（gen_init_cpio 清单）→ rootfs.cpio → 分区 2 独立烧录
+# /init（make init-s4-02）+ /rootfs.ext2（make image-s4-02 生成的 ext2 镜像）。
+dir /dev 0755 0 0
+nod /dev/console 0622 0 0 c 5 1
+file /init /home/developer/iotahydrae/rp2350-linux/s4/02_ext2/initramfs/init 0755 0 0
+file /rootfs.ext2 /home/developer/iotahydrae/rp2350-linux/s4/02_ext2/rootfs.ext2 0644 0 0
