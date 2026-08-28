@@ -25,8 +25,50 @@
 
 - 自研 RP2350A-Minimal 板（16MB flash、8MB PSRAM，PSRAM 片选 = GPIO0）
 - UART0（GP16/17，115200）接 USB 转串口，看日志
-- Linux 开发机：`riscv64-linux-gnu-gcc`、`cmake`、`ninja`、`picotool`、`dtc`、`qemu-system-riscv32`、`gdb-multiarch`、`openocd`（完整搭建见 [`notes/环境搭建.md`](notes/环境搭建.md)）
-- pico-sdk：`/home/developer/raspberrypi/pico-sdk`（含 RISC-V 裸机工具链）
+- Linux 开发机：`cmake`、`ninja`、`picotool`、`dtc`、`qemu-system-riscv32`、`gdb-multiarch`、`openocd`（完整搭建见 [`notes/环境搭建.md`](notes/环境搭建.md)）
+
+### 1.5 准备工具链与内核源码
+
+本项目需要**两套 RISC-V 工具链**，各管一段：
+
+**① bootloader 工具链（RISC-V 裸机，编译 pico-sdk 固件）**
+
+树莓派官方 `pico-sdk-tools` 发布的 riscv-toolchain-14（约 850MB）：
+
+```bash
+mkdir -p ~/toolchain && cd ~/toolchain
+wget -c https://github.com/raspberrypi/pico-sdk-tools/releases/download/v2.0.0-5/riscv-toolchain-14-x86_64-lin.tar.gz
+tar xzf riscv-toolchain-14-x86_64-lin.tar.gz -C ~/toolchain
+ls ~/toolchain/bin/riscv32-unknown-elf-gcc   # 验证
+export PICO_TOOLCHAIN_PATH=~/toolchain        # pico-sdk 靠它找编译器
+```
+
+（GitHub 直连慢可以用加速镜像，下载后务必确认 `riscv32-unknown-elf-gcc` 存在。）
+
+**② 内核工具链（交叉编译 Linux，apt 安装）**
+
+```bash
+sudo apt install gcc-riscv64-linux-gnu
+riscv64-linux-gnu-gcc --version              # 验证
+```
+
+**③ 内核源码（kernel.org 下载 linux-7.2）**
+
+```bash
+cd ~
+wget -c https://cdn.kernel.org/pub/linux/kernel/v7.x/linux-7.2.tar.xz
+tar xJf linux-7.2.tar.xz
+cd linux-7.2 && git init && git add -A && git commit -m "import: Linux 7.2 pristine source"
+```
+
+（最后一步 git 初始化是本项目的约定：所有移植改动按功能提交、带 commit id 可溯源，见 [`notes/内核改动记录与溯源.md`](notes/内核改动记录与溯源.md)。）
+
+**④ pico-sdk（bootloader 的 SDK）**
+
+```bash
+git clone -b 2.3.0 https://github.com/raspberrypi/pico-sdk.git ~/raspberrypi/pico-sdk
+cd ~/raspberrypi/pico-sdk && git submodule update --init
+```
 
 ### 2. 构建
 
