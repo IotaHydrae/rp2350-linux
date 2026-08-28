@@ -1,0 +1,5 @@
+# S4-00 rootfs 内容（gen_init_cpio 清单）→ rootfs.cpio → 分区 2 独立烧录
+# /init 是 S4-00 自有的 bFLT（make init-s4-00 构建），改 rootfs 只烧分区 2。
+dir /dev 0755 0 0
+nod /dev/console 0622 0 0 c 5 1
+file /init /home/developer/iotahydrae/rp2350-linux/s4/00_boot-initramfs/initramfs/init 0755 0 0

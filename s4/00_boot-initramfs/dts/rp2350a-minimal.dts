@@ -1,0 +1,31 @@
+// SPDX-License-Identifier: GPL-2.0
+/*
+ * RP2350A-Minimal 板级设备树（自研板：16MB flash、8MB PSRAM CS1=GPIO0、
+ * UART0 GP16/17 @115200）。
+ *
+ * 00_boot-initramfs：initramfs 由 bootloader 拷到固定 RAM 地址，
+ * DTB 用 linux,initrd-start/end 描述，rootfs 独立分区烧录。
+ */
+/dts-v1/;
+
+#include "rp2350a.dtsi"
+
+/ {
+	model = "RP2350A-Minimal";
+	compatible = "rp2350a-minimal", "raspberrypi,rp2350";
+
+	chosen {
+		/* 不加 root=：initramfs 解包到 rootfs 后，kernel_init_freeable
+		 * 检查 /init 可执行就直接以 rootfs 为根跑它（跳过 prepare_namespace）。
+		 * linux,initrd-*：bootloader 把分区 2 拷到 0x11300000（固定约定，
+		 * 与 bootloader main.c 的 INITRAMFS_LOAD_ADDR 一致）。 */
+		bootargs = "earlycon=pl011,mmio32,0x40070000,115200n8 console=ttyAMA0";
+		linux,initrd-start = <0x11300000>;
+		linux,initrd-end = <0x11400000>;
+	};
+
+	memory@11000000 {
+		device_type = "memory";
+		reg = <0x11000000 0x00800000>;
+	};
+};

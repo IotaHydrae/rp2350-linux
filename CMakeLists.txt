@@ -18,3 +18,4 @@ add_subdirectory(s3/02_timer)      # S3-02：定时器链——cpu-intc + timer-
 add_subdirectory(s3/03_irq)        # S3-03：Xh3irq 外设中断——UART0 RX 中断验收
 add_subdirectory(s3/04_console)    # S3-04：真 console 收尾——ttyAMA0 确定接管日志
 add_subdirectory(s3/05_shell)      # S3-05：进 shell——initramfs + 自写 /init
+add_subdirectory(s4/00_boot-initramfs)  # S4-00：bootloader 拷 initramfs——rootfs 独立分区

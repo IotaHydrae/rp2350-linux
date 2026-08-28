@@ -7,12 +7,14 @@ QEMU_SCRIPT := s2/run-qemu.sh
 .PHONY: all clean qemu test flash flash-bootloader flash-fake flash-psram-test flash-amo-test flash-xip-stress \
         kernel-s3-00 kernel-s3-01 kernel-s3-02 kernel-s3-03 \
         kernel-s3-04 kernel-s3-05 init-s3-05 \
+        kernel-s4-00 rootfs-s4-00 init-s4-00 \
         flash-s3-00-bootloader flash-s3-00-kernel flash-s3-00-dtb \
         flash-s3-01-bootloader flash-s3-01-kernel flash-s3-01-dtb \
         flash-s3-02-bootloader flash-s3-02-kernel flash-s3-02-dtb \
         flash-s3-03-bootloader flash-s3-03-kernel flash-s3-03-dtb \
         flash-s3-04-bootloader flash-s3-04-kernel flash-s3-04-dtb \
-        flash-s3-05-bootloader flash-s3-05-kernel flash-s3-05-dtb
+        flash-s3-05-bootloader flash-s3-05-kernel flash-s3-05-dtb \
+        flash-s4-00-bootloader flash-s4-00-kernel flash-s4-00-dtb flash-s4-00-rootfs
 
 all: $(BUILD_DIR)/build.ninja
 	ninja -C $(BUILD_DIR)
@@ -154,6 +156,47 @@ $(BUILD_DIR)/s3/05_shell/rp2350a-minimal.dtb: s3/05_shell/dts/rp2350a-minimal.dt
 	    -o $(BUILD_DIR)/s3/05_shell/rp2350a-minimal.dts.pre $<
 	dtc -I dts -O dtb -o $@ $(BUILD_DIR)/s3/05_shell/rp2350a-minimal.dts.pre
 
+# ---- S4 工程 1 (00_boot-initramfs：bootloader 拷 initramfs) ----
+flash-s4-00-bootloader: all
+	picotool load -fu --ignore-partitions $(BUILD_DIR)/s4/00_boot-initramfs/s4-00-bootloader.uf2
+
+flash-s4-00-kernel: all
+	picotool load -fv -p 0 -t bin s4/00_boot-initramfs/kernel-Image
+
+flash-s4-00-dtb: $(BUILD_DIR)/s4/00_boot-initramfs/rp2350a-minimal.dtb
+	picotool load -fv -p 1 -t bin $(BUILD_DIR)/s4/00_boot-initramfs/rp2350a-minimal.dtb
+
+flash-s4-00-rootfs: rootfs-s4-00
+	# rootfs 独立烧录：改 rootfs 只需重跑这一条（内核/DTB/bootloader 不用动）
+	picotool load -fv -p 2 -t bin s4/00_boot-initramfs/rootfs.cpio
+
+$(BUILD_DIR)/s4/00_boot-initramfs/rp2350a-minimal.dtb: s4/00_boot-initramfs/dts/rp2350a-minimal.dts s4/00_boot-initramfs/dts/rp2350a.dtsi | $(BUILD_DIR)
+	mkdir -p $(BUILD_DIR)/s4/00_boot-initramfs
+	cpp -nostdinc -I s4/00_boot-initramfs/dts -undef -x assembler-with-cpp \
+	    -o $(BUILD_DIR)/s4/00_boot-initramfs/rp2350a-minimal.dts.pre $<
+	dtc -I dts -O dtb -o $@ $(BUILD_DIR)/s4/00_boot-initramfs/rp2350a-minimal.dts.pre
+
+# ---- S4-00 rootfs：gen_init_cpio 清单 → rootfs.cpio（分区 2）----
+GEN_INIT_CPIO = $(KERNEL_SRC)/build-rv32-05/usr/gen_init_cpio
+
+$(GEN_INIT_CPIO):
+	cd $(KERNEL_SRC) && make ARCH=riscv CROSS_COMPILE=$(KERNEL_CROSS) O=build-rv32-05 usr/gen_init_cpio
+
+rootfs-s4-00: init-s4-00 $(GEN_INIT_CPIO) s4/00_boot-initramfs/initramfs.list
+	$(GEN_INIT_CPIO) s4/00_boot-initramfs/initramfs.list > s4/00_boot-initramfs/rootfs.cpio
+	sha256sum s4/00_boot-initramfs/rootfs.cpio
+
+# ---- S4-00 /init（rootfs 内容，bFLT 手搓，S4 自洽）----
+INITRAMFS_S4_SRC := s4/00_boot-initramfs/initramfs-src
+INITRAMFS_S4_DIR := s4/00_boot-initramfs/initramfs
+
+init-s4-00: $(INITRAMFS_S4_SRC)/init.c $(INITRAMFS_S4_SRC)/init.ld scripts/pack-bflt.sh
+	mkdir -p $(BUILD_DIR) $(INITRAMFS_S4_DIR)
+	riscv64-linux-gnu-gcc -march=rv32imac -mabi=ilp32 -fPIC -mno-relax \
+	    -msmall-data-limit=0 -nostdlib -no-pie -O2 -fno-builtin -Wall -Wextra \
+	    -T $(INITRAMFS_S4_SRC)/init.ld -o $(BUILD_DIR)/init-s4-00.elf $(INITRAMFS_S4_SRC)/init.c
+	scripts/pack-bflt.sh $(BUILD_DIR)/init-s4-00.elf $(INITRAMFS_S4_DIR)/init
+
 # ---- S3-05 /init（NOMMU 只能用 FLAT 格式，手搓 bFLT）----
 INITRAMFS_SRC := s3/05_shell/initramfs-src
 INITRAMFS_DIR := s3/05_shell/initramfs
@@ -257,6 +300,21 @@ kernel-s3-05: $(KERNEL_SRC)/build-rv32-05/.config init-s3-05
 		echo "ERROR: kernel Image 超过分区 0 的 3MB 上限（见 partition_table.json），需要先扩分区"; \
 		exit 1; }
 	sha256sum s3/05_shell/kernel-Image
+
+# ---- S4-00（bootloader 拷 initramfs，rootfs 独立）：build-rv32-s4-00 ----
+$(KERNEL_SRC)/build-rv32-s4-00/.config: $(CURDIR)/s4/00_boot-initramfs/rp2350_minimal_defconfig
+	mkdir -p $(KERNEL_SRC)/build-rv32-s4-00
+	cp $(CURDIR)/s4/00_boot-initramfs/rp2350_minimal_defconfig $(KERNEL_SRC)/build-rv32-s4-00/.config
+	cd $(KERNEL_SRC) && make ARCH=riscv CROSS_COMPILE=$(KERNEL_CROSS) O=build-rv32-s4-00 olddefconfig
+
+# 无内置 initramfs 的内核（rootfs 由 bootloader 经 DTB 提供）
+kernel-s4-00: $(KERNEL_SRC)/build-rv32-s4-00/.config
+	cd $(KERNEL_SRC) && make ARCH=riscv CROSS_COMPILE=$(KERNEL_CROSS) O=build-rv32-s4-00 -j$$(nproc) Image
+	cp $(KERNEL_SRC)/build-rv32-s4-00/arch/riscv/boot/Image s4/00_boot-initramfs/kernel-Image
+	@test $$(stat -c %s s4/00_boot-initramfs/kernel-Image) -le 3145728 || { \
+		echo "ERROR: kernel Image 超过分区 0 的 3MB 上限（见 partition_table.json），需要先扩分区"; \
+		exit 1; }
+	sha256sum s4/00_boot-initramfs/kernel-Image
 
 # 兼容旧习惯：flash = 烧 bootloader
 flash: flash-bootloader
