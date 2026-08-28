@@ -10,6 +10,7 @@ QEMU_SCRIPT := s2/run-qemu.sh
         kernel-s4-00 rootfs-s4-00 init-s4-00 \
         init-s4-01 hello-s4-01 rootfs-s4-01 \
         kernel-s4-02 init-s4-02 image-s4-02 rootfs-s4-02 \
+        init-s4-03 hello-s4-03 image-s4-03 \
         flash-s3-00-bootloader flash-s3-00-kernel flash-s3-00-dtb \
         flash-s3-01-bootloader flash-s3-01-kernel flash-s3-01-dtb \
         flash-s3-02-bootloader flash-s3-02-kernel flash-s3-02-dtb \
@@ -18,7 +19,8 @@ QEMU_SCRIPT := s2/run-qemu.sh
         flash-s3-05-bootloader flash-s3-05-kernel flash-s3-05-dtb \
         flash-s4-00-bootloader flash-s4-00-kernel flash-s4-00-dtb flash-s4-00-rootfs \
         flash-s4-01-bootloader flash-s4-01-kernel flash-s4-01-dtb flash-s4-01-rootfs \
-        flash-s4-02-bootloader flash-s4-02-kernel flash-s4-02-rootfs
+        flash-s4-02-bootloader flash-s4-02-kernel flash-s4-02-rootfs \
+        flash-s4-03-bootloader flash-s4-03-kernel flash-s4-03-dtb flash-s4-03-rootfs
 
 all: $(BUILD_DIR)/build.ninja
 	ninja -C $(BUILD_DIR)
@@ -278,6 +280,54 @@ image-s4-02: s4/02_ext2/root-content/hello.txt
 rootfs-s4-02: init-s4-02 image-s4-02 $(GEN_INIT_CPIO) s4/02_ext2/initramfs.list
 	$(GEN_INIT_CPIO) s4/02_ext2/initramfs.list > s4/02_ext2/rootfs.cpio
 	sha256sum s4/02_ext2/rootfs.cpio
+
+# ---- S4 工程 4 (03_root-ext2：根切 ext2——legacy initrd) ----
+flash-s4-03-bootloader: all
+	picotool load -fu --ignore-partitions $(BUILD_DIR)/s4/03_root-ext2/s4-03-bootloader.uf2
+
+flash-s4-03-kernel: all
+	# 本关无内核改动，复用 S4-02 内核（brd，sha 98b0cb5c）；如需重编走 kernel-s4-02
+	picotool load -fv -p 0 -t bin s4/02_ext2/kernel-Image
+
+flash-s4-03-dtb: $(BUILD_DIR)/s4/03_root-ext2/rp2350a-minimal.dtb
+	picotool load -fv -p 1 -t bin $(BUILD_DIR)/s4/03_root-ext2/rp2350a-minimal.dtb
+
+flash-s4-03-rootfs: image-s4-03
+	# 分区 2 内容 = raw ext2 镜像（不再包 cpio），bootloader 原样拷到 0x11300000
+	picotool load -fv -p 2 -t bin s4/03_root-ext2/rootfs.ext2
+
+$(BUILD_DIR)/s4/03_root-ext2/rp2350a-minimal.dtb: s4/03_root-ext2/dts/rp2350a-minimal.dts s4/03_root-ext2/dts/rp2350a.dtsi | $(BUILD_DIR)
+	mkdir -p $(BUILD_DIR)/s4/03_root-ext2
+	cpp -nostdinc -I s4/03_root-ext2/dts -undef -x assembler-with-cpp \
+	    -o $(BUILD_DIR)/s4/03_root-ext2/rp2350a-minimal.dts.pre $<
+	dtc -I dts -O dtb -o $@ $(BUILD_DIR)/s4/03_root-ext2/rp2350a-minimal.dts.pre
+
+# ---- S4-03 rootfs：/init + /bin/hello 灌进 raw ext2 镜像（无 cpio）----
+INITRAMFS_S43_SRC := s4/03_root-ext2/initramfs-src
+INITRAMFS_S43_DIR := s4/03_root-ext2/initramfs
+HELLO_S43_SRC := s4/03_root-ext2/hello-src
+
+init-s4-03: $(INITRAMFS_S43_SRC)/init.c $(INITRAMFS_S43_SRC)/init.ld scripts/pack-bflt.sh
+	mkdir -p $(BUILD_DIR) $(INITRAMFS_S43_DIR)
+	riscv64-linux-gnu-gcc -march=rv32imac -mabi=ilp32 -fPIC -mno-relax \
+	    -msmall-data-limit=0 -nostdlib -no-pie -O2 -fno-builtin -Wall -Wextra \
+	    -T $(INITRAMFS_S43_SRC)/init.ld -o $(BUILD_DIR)/init-s4-03.elf $(INITRAMFS_S43_SRC)/init.c
+	scripts/pack-bflt.sh $(BUILD_DIR)/init-s4-03.elf $(INITRAMFS_S43_DIR)/init
+
+hello-s4-03: $(HELLO_S43_SRC)/hello.c scripts/pack-bflt.sh
+	mkdir -p $(BUILD_DIR)
+	riscv64-linux-gnu-gcc -march=rv32imac -mabi=ilp32 -fPIC -mno-relax \
+	    -msmall-data-limit=0 -nostdlib -no-pie -O2 -fno-builtin -Wall -Wextra \
+	    -T $(INITRAMFS_S43_SRC)/init.ld -o $(BUILD_DIR)/hello-s4-03.elf $(HELLO_S43_SRC)/hello.c
+	scripts/pack-bflt.sh $(BUILD_DIR)/hello-s4-03.elf s4/03_root-ext2/hello
+
+image-s4-03: init-s4-03 hello-s4-03
+	mkdir -p $(BUILD_DIR)/s4-03-root/dev $(BUILD_DIR)/s4-03-root/bin
+	cp $(INITRAMFS_S43_DIR)/init $(BUILD_DIR)/s4-03-root/init
+	cp s4/03_root-ext2/hello $(BUILD_DIR)/s4-03-root/bin/hello
+	rm -f s4/03_root-ext2/rootfs.ext2
+	mkfs.ext2 -q -F -b 1024 -m 0 -d $(BUILD_DIR)/s4-03-root s4/03_root-ext2/rootfs.ext2 512k
+	sha256sum s4/03_root-ext2/rootfs.ext2
 
 # ---- S3-05 /init（NOMMU 只能用 FLAT 格式，手搓 bFLT）----
 INITRAMFS_SRC := s3/05_shell/initramfs-src

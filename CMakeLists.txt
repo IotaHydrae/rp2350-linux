@@ -21,3 +21,4 @@ add_subdirectory(s3/05_shell)      # S3-05：进 shell——initramfs + 自写 /
 add_subdirectory(s4/00_boot-initramfs)  # S4-00：bootloader 拷 initramfs——rootfs 独立分区
 add_subdirectory(s4/01_exec-hello)      # S4-01：shell 调用外部程序 /bin/hello（vfork+execve）
 add_subdirectory(s4/02_ext2)            # S4-02：ext2 真实文件系统 on brd
+add_subdirectory(s4/03_root-ext2)       # S4-03：根切 ext2——legacy initrd，内核直接挂根
