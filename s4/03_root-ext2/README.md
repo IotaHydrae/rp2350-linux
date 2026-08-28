@@ -65,6 +65,8 @@ make flash-s4-03-rootfs       # 分区 2 = raw ext2 镜像
 ## 已知边界 / 排查
 
 - legacy initrd 会打 deprecation 警告（2027-01 移除）；本关教学目的就是走这条老链，属预期。
+- **根挂载默认只读**（root_mountflags 默认 MS_RDONLY）：本关只读够用；要写根（比如以后做落盘实验），bootargs 加 `rw`。
+- populate_rootfs 把 initrd 内存原样存成 /initrd.image 后立即释放内存（日志 `Freeing initrd memory: 1024K`）；rd_load_image 读的是文件，顺序没错。
 - 如果卡在 `VFS: Cannot open root device "/dev/ram"...`：先查 bootargs 是否 root=/dev/ram（不是 ram0）、rootfstype=ext2、分区 2 是否 raw ext2。
 - 如果没看到 shell 而日志停在 `Run /init as init process`：/init 起不来，用 `scripts/log-analyze.sh <vmlinux> <日志>` 看 Call Trace（vmlinux 在 `/home/developer/linux-7.2/build-rv32-s4-02/vmlinux`）。
 - 根里 /init 自己 dup3 tty 到 0/1/2：初始 rootfs 是空 ramfs，没有 /dev/console，`console_on_rootfs()` 打不开（日志会有一行 `Warning: unable to open an initial console.`，属预期）。
