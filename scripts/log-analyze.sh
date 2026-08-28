@@ -24,15 +24,15 @@ LOG="${2:?用法: log-analyze.sh <vmlinux> <日志文件> [末尾行数] [基址
 TAIL_N="${3:-30}"
 BASE="${4:-0x11000000}"
 
-[ -f "$VMLINUX" ] || { echo "错误: 找不到 vmlinux: $VMLINUX" >&2; exit 1; }
-[ -f "$LOG" ] || { echo "错误: 找不到日志: $LOG" >&2; exit 1; }
+[ -f "$VMLINUX" ] || { echo "Error: vmlinux not found: $VMLINUX" >&2; exit 1; }
+[ -f "$LOG" ] || { echo "Error: log file not found: $LOG" >&2; exit 1; }
 
-echo "## 异常/告警"
+echo "## Warnings/errors"
 grep -nE 'WARNING:|Kernel panic|BUG:|Oops|Unable to handle|mcause|mepc|mtval' \
 	"$LOG" || true
 
 echo
-echo "## 末尾 ${TAIL_N} 行"
+echo "## Last ${TAIL_N} lines"
 tail -n "$TAIL_N" "$LOG"
 
 echo

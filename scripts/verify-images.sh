@@ -20,7 +20,7 @@ set -euo pipefail
 PROJ="${1:-s3/03_irq}"
 BUILD_DIR="${2:-/home/developer/linux-7.2/build-rv32-03}"
 
-echo "===== 校验工程: $PROJ ====="
+echo "===== Verifying project: $PROJ ====="
 
 # 1) 内核 Image 一致性
 IMG="$PROJ/kernel-Image"
@@ -29,37 +29,37 @@ if [ -f "$IMG" ] && [ -f "$BUILD_IMG" ]; then
 	a=$(sha256sum "$IMG" | awk '{print $1}')
 	b=$(sha256sum "$BUILD_IMG" | awk '{print $1}')
 	if [ "$a" = "$b" ]; then
-		echo "✔ 内核 Image 一致 ($a)"
+		echo "[OK] kernel Image matches ($a)"
 	else
-		echo "✘ 内核 Image 不一致！"
-		echo "   工程:  $a  $IMG"
-		echo "   构建:  $b  $BUILD_IMG"
-		echo "   请重新 make kernel-s3-0x"
+		echo "[FAIL] kernel Image MISMATCH!"
+		echo "  repo:   $a  $IMG"
+		echo "  build:  $b  $BUILD_IMG"
+		echo "  rerun make kernel-s3-0x"
 	fi
 else
-	echo "⚠ 缺少内核 Image 或构建产物（$IMG / $BUILD_IMG）"
+	echo "[WARN] missing kernel Image or build output ($IMG / $BUILD_IMG)"
 fi
 
 # 2) DTB 反编译抽查
 DTB="build/$PROJ/rp2350a-minimal.dtb"
 if [ -f "$DTB" ]; then
 	if dtc -I dtb -O dts "$DTB" >/dev/null 2>&1; then
-		echo "✔ DTB 可正常反编译 ($DTB)"
-		dtc -I dtb -O dts "$DTB" 2>/dev/null | grep -c 'compatible' | xargs echo "   节点 compatible 数:"
+		echo "[OK] DTB decompiles cleanly ($DTB)"
+		dtc -I dtb -O dts "$DTB" 2>/dev/null | grep -c 'compatible' | xargs echo "  compatible nodes:"
 	else
-		echo "✘ DTB 反编译失败（文件可能损坏）"
+		echo "[FAIL] DTB decompile failed (file may be corrupt)"
 	fi
 else
-	echo "⚠ 缺少 DTB: $DTB（先 make build/$PROJ/rp2350a-minimal.dtb）"
+	echo "[WARN] missing DTB: $DTB (run make build/$PROJ/rp2350a-minimal.dtb first)"
 fi
 
 # 3) bootloader UF2
 UF2="build/$PROJ/s3-03-bootloader.uf2"
 if [ -f "$UF2" ]; then
-	echo "✔ bootloader UF2 存在 ($UF2, $(stat -c%s "$UF2") 字节)"
+	echo "[OK] bootloader UF2 present ($UF2, $(stat -c%s "$UF2") bytes)"
 else
-	echo "⚠ 缺少 bootloader UF2: $UF2（先 make all）"
+	echo "[WARN] missing bootloader UF2: $UF2 (run make all first)"
 fi
 
 echo
-echo "全部通过即可烧录：make flash-${PROJ#s3/}-kernel / flash-...-dtb"
+echo "When all pass: make flash-${PROJ#s3/}-kernel / flash-...-dtb"

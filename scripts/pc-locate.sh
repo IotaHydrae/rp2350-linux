@@ -28,7 +28,7 @@ OBJDUMP=riscv64-linux-gnu-objdump
 ADDR2LINE=riscv64-linux-gnu-addr2line
 
 if [ ! -f "$VMLINUX" ]; then
-	echo "错误: 找不到 vmlinux: $VMLINUX" >&2
+	echo "Error: vmlinux not found: $VMLINUX" >&2
 	exit 1
 fi
 
@@ -42,7 +42,7 @@ else
 fi
 off_hex=$(printf '0x%x' "$off")
 
-echo "PC: $PC_ARG -> vmlinux 偏移: $off_hex"
+echo "PC: $PC_ARG -> vmlinux offset: $off_hex"
 echo
 
 # ---- 1) 函数符号：nm 按地址排序，取 <= off 的最后一个符号 ----
@@ -58,17 +58,17 @@ done < <("$NM" -n "$VMLINUX" 2>/dev/null)
 
 if [ -n "$best" ]; then
 	read -r func_addr func_type func_name <<<"$best"
-	echo "符号: $func_name  (0x$func_addr, $func_type)"
+	echo "Symbol: $func_name  (0x$func_addr, $func_type)"
 	func_off=$((off - 16#$func_addr))
-	echo "      pc 距函数起点 +0x$(printf '%x' "$func_off")"
+	echo "       pc is +0x$(printf '%x' "$func_off") into the function"
 else
-	echo "符号: (未找到，地址可能不在任何函数内)"
+	echo "Symbol: (not found, address may be outside any function)"
 	func_addr=""
 fi
 echo
 
 # ---- 2) 源文件:行号（addr2line，需要 DWARF 调试信息）----
-echo "源文件:"
+echo "Source:"
 "$ADDR2LINE" -e "$VMLINUX" -f -C "$off_hex" 2>/dev/null || true
 echo
 
@@ -81,12 +81,12 @@ fi
 end=$((off + 48))
 start_hex=$(printf '0x%x' "$start")
 end_hex=$(printf '0x%x' "$end")
-echo "反汇编 [$start_hex .. $end_hex]:"
+echo "Disassembly [$start_hex .. $end_hex]:"
 "$OBJDUMP" -d "$VMLINUX" --start-address="$start_hex" --stop-address="$end_hex" 2>/dev/null \
 	|| "$OBJDUMP" -d "$VMLINUX" --start-address="$start" --stop-address="$end"
 echo
 
 # ---- 4) 顺带给出 GDB 里可直接用的命令 ----
-echo "GDB 速查:"
-echo "  x/12i \$pc-16        # 反汇编（已连 GDB 时）"
-echo "  info line *$off_hex   # 对应源码行（有调试信息时）"
+echo "GDB quick commands:"
+echo "  x/12i \$pc-16          # disassemble around pc"
+echo "  info line *$off_hex    # source line for this address"

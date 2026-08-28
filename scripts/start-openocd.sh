@@ -19,17 +19,17 @@ CORE="${2:-rv0}"
 
 # 防重复启动：已经有一个连 rp2350 的 openocd 在跑就直接用
 if pgrep -f "openocd.*rp2350" >/dev/null; then
-	echo "OpenOCD 已在运行（$(pgrep -f 'openocd.*rp2350' | tr '\n' ' ')）。"
-	echo "如果 GDB 连不上，先 'sudo pkill openocd' 再重试。"
+	echo "OpenOCD already running (pid $(pgrep -f 'openocd.*rp2350' | tr '\n' ' '))."
+	echo "If GDB cannot connect, 'sudo pkill openocd' and retry."
 	exit 0
 fi
 
 # 权限提示：有 udev 规则就不需要 sudo
 if [ "$(id -u)" != "0" ]; then
-	echo "提示：如果报权限错误，装一次 udev 规则（见仓库 udev/）或改用 sudo 运行本脚本。"
+	echo "Note: on permission errors, install the udev rules (see udev/) or run with sudo."
 fi
 
-echo "启动 OpenOCD: speed=${SPEED}kHz core=${CORE}（Ctrl+C 退出）"
+echo "Starting OpenOCD: speed=${SPEED}kHz core=${CORE} (Ctrl+C to stop)"
 sudo openocd \
 	-f interface/cmsis-dap.cfg \
 	-c "set USE_CORE ${CORE}" \
