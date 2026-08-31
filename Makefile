@@ -12,6 +12,7 @@ QEMU_SCRIPT := s2/run-qemu.sh
         kernel-s4-02 init-s4-02 image-s4-02 rootfs-s4-02 \
         init-s4-03 hello-s4-03 image-s4-03 \
         kernel-s4-04 init-s4-04 busybox-s4-04 image-s4-04 \
+        init-s4-05 rootfs-s4-05 \
         flash-s3-00-bootloader flash-s3-00-kernel flash-s3-00-dtb \
         flash-s3-01-bootloader flash-s3-01-kernel flash-s3-01-dtb \
         flash-s3-02-bootloader flash-s3-02-kernel flash-s3-02-dtb \
@@ -22,7 +23,8 @@ QEMU_SCRIPT := s2/run-qemu.sh
         flash-s4-01-bootloader flash-s4-01-kernel flash-s4-01-dtb flash-s4-01-rootfs \
         flash-s4-02-bootloader flash-s4-02-kernel flash-s4-02-rootfs \
         flash-s4-03-bootloader flash-s4-03-kernel flash-s4-03-dtb flash-s4-03-rootfs \
-        flash-s4-04-bootloader flash-s4-04-kernel flash-s4-04-dtb flash-s4-04-rootfs
+        flash-s4-04-bootloader flash-s4-04-kernel flash-s4-04-dtb flash-s4-04-rootfs \
+        flash-s4-05-bootloader flash-s4-05-kernel flash-s4-05-dtb flash-s4-05-rootfs
 
 all: $(BUILD_DIR)/build.ninja
 	ninja -C $(BUILD_DIR)
@@ -398,6 +400,45 @@ kernel-s4-04: $(KERNEL_SRC)/build-rv32-s4-04/.config
 		echo "ERROR: kernel Image 超过分区 0 的 3MB 上限，需要先扩分区"; \
 		exit 1; }
 	sha256sum s4/04_busybox/kernel-Image
+
+# ---- S4 工程 6 (05_buildroot-rootfs：rootfs 由 buildroot 组装) ----
+BUILDROOT_DIR ?= /home/developer/buildroot-2026.05.2
+
+flash-s4-05-bootloader: all
+	picotool load -fu --ignore-partitions $(BUILD_DIR)/s4/05_buildroot-rootfs/s4-05-bootloader.uf2
+
+flash-s4-05-kernel: all
+	# 复用 S4-04 内核（sha 2fbb50ab，含 MEICONTEXT 修复），本关无内核改动
+	picotool load -fv -p 0 -t bin s4/04_busybox/kernel-Image
+
+flash-s4-05-dtb: $(BUILD_DIR)/s4/05_buildroot-rootfs/rp2350a-minimal.dtb
+	picotool load -fv -p 1 -t bin $(BUILD_DIR)/s4/05_buildroot-rootfs/rp2350a-minimal.dtb
+
+flash-s4-05-rootfs: rootfs-s4-05
+	# 分区 2 = buildroot 生成的 rootfs.ext2（512KB）
+	picotool load -fv -p 2 -t bin s4/05_buildroot-rootfs/rootfs.ext2
+
+$(BUILD_DIR)/s4/05_buildroot-rootfs/rp2350a-minimal.dtb: s4/05_buildroot-rootfs/dts/rp2350a-minimal.dts s4/05_buildroot-rootfs/dts/rp2350a.dtsi | $(BUILD_DIR)
+	mkdir -p $(BUILD_DIR)/s4/05_buildroot-rootfs
+	cpp -nostdinc -I s4/05_buildroot-rootfs/dts -undef -x assembler-with-cpp \
+	    -o $(BUILD_DIR)/s4/05_buildroot-rootfs/rp2350a-minimal.dts.pre $<
+	dtc -I dts -O dtb -o $@ $(BUILD_DIR)/s4/05_buildroot-rootfs/rp2350a-minimal.dts.pre
+
+# /init 启动器 → buildroot overlay（BR2_ROOTFS_OVERLAY 指向 overlay/）
+INITRAMFS_S45_SRC := s4/05_buildroot-rootfs/initramfs-src
+
+init-s4-05: $(INITRAMFS_S45_SRC)/init.c $(INITRAMFS_S45_SRC)/init.ld scripts/pack-bflt.sh
+	mkdir -p $(BUILD_DIR) s4/05_buildroot-rootfs/overlay
+	riscv64-linux-gnu-gcc -march=rv32imac -mabi=ilp32 -fPIC -mno-relax \
+	    -msmall-data-limit=0 -nostdlib -no-pie -O2 -fno-builtin -Wall -Wextra \
+	    -T $(INITRAMFS_S45_SRC)/init.ld -o $(BUILD_DIR)/init-s4-05.elf $(INITRAMFS_S45_SRC)/init.c
+	scripts/pack-bflt.sh $(BUILD_DIR)/init-s4-05.elf s4/05_buildroot-rootfs/overlay/init
+
+rootfs-s4-05: init-s4-05
+	# buildroot 重新组装 rootfs（含 /init overlay）并出 ext2 镜像，拷回工程
+	cd $(BUILDROOT_DIR) && PATH=/tmp/brhostbin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin make
+	cp $(BUILDROOT_DIR)/output/images/rootfs.ext2 s4/05_buildroot-rootfs/rootfs.ext2
+	sha256sum s4/05_buildroot-rootfs/rootfs.ext2
 
 # ---- S3-05 /init（NOMMU 只能用 FLAT 格式，手搓 bFLT）----
 INITRAMFS_SRC := s3/05_shell/initramfs-src
