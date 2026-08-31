@@ -1,0 +1,35 @@
+// SPDX-License-Identifier: GPL-2.0
+/*
+ * RP2350A-Minimal 板级设备树（自研板：16MB flash、8MB PSRAM CS1=GPIO0、
+ * UART0 GP16/17 @115200）。
+ *
+ * 04_busybox：分区 2 放 raw ext2 镜像（含 busybox），bootloader 拷到固定 RAM 地址；
+ * DTB 用 linux,initrd-start/end 描述，走 legacy initrd（不再是 cpio initramfs）：
+ *   populate_rootfs 解不开 ext2 → 原样存 /initrd.image →
+ *   prepare_namespace 的 initrd_load 把它拷进 /dev/ram0 → mount_root 挂根。
+ */
+/dts-v1/;
+
+#include "rp2350a.dtsi"
+
+/ {
+	model = "RP2350A-Minimal";
+	compatible = "rp2350a-minimal", "raspberrypi,rp2350";
+
+	chosen {
+		/* root=/dev/ram：parse_root_device 特判成 Root_RAM0（ramdisk 主设备 1:0）。
+		 * 不要写 root=/dev/ram0：devtmpfs 在 mount_root 之后才挂，解析时节点
+		 * 还不存在，early_lookup_bdev 会失败。
+		 * init=/init：根挂载完成后显式执行根里的 /init（不靠 /sbin/init 静默搜索）。
+		 * linux,initrd-*：bootloader 把分区 2（raw ext2）拷到 0x11300000（固定约定，
+		 * 与 bootloader main.c 的 ROOTFS_LOAD_ADDR 一致）。 */
+		bootargs = "earlycon=pl011,mmio32,0x40070000,115200n8 console=ttyAMA0 root=/dev/ram rootfstype=ext2 init=/init";
+		linux,initrd-start = <0x11300000>;
+		linux,initrd-end = <0x11400000>;
+	};
+
+	memory@11000000 {
+		device_type = "memory";
+		reg = <0x11000000 0x00800000>;
+	};
+};

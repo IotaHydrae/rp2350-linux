@@ -11,6 +11,7 @@ QEMU_SCRIPT := s2/run-qemu.sh
         init-s4-01 hello-s4-01 rootfs-s4-01 \
         kernel-s4-02 init-s4-02 image-s4-02 rootfs-s4-02 \
         init-s4-03 hello-s4-03 image-s4-03 \
+        kernel-s4-04 init-s4-04 busybox-s4-04 image-s4-04 \
         flash-s3-00-bootloader flash-s3-00-kernel flash-s3-00-dtb \
         flash-s3-01-bootloader flash-s3-01-kernel flash-s3-01-dtb \
         flash-s3-02-bootloader flash-s3-02-kernel flash-s3-02-dtb \
@@ -20,7 +21,8 @@ QEMU_SCRIPT := s2/run-qemu.sh
         flash-s4-00-bootloader flash-s4-00-kernel flash-s4-00-dtb flash-s4-00-rootfs \
         flash-s4-01-bootloader flash-s4-01-kernel flash-s4-01-dtb flash-s4-01-rootfs \
         flash-s4-02-bootloader flash-s4-02-kernel flash-s4-02-rootfs \
-        flash-s4-03-bootloader flash-s4-03-kernel flash-s4-03-dtb flash-s4-03-rootfs
+        flash-s4-03-bootloader flash-s4-03-kernel flash-s4-03-dtb flash-s4-03-rootfs \
+        flash-s4-04-bootloader flash-s4-04-kernel flash-s4-04-dtb flash-s4-04-rootfs
 
 all: $(BUILD_DIR)/build.ninja
 	ninja -C $(BUILD_DIR)
@@ -328,6 +330,73 @@ image-s4-03: init-s4-03 hello-s4-03
 	rm -f s4/03_root-ext2/rootfs.ext2
 	mkfs.ext2 -q -F -b 1024 -m 0 -d $(BUILD_DIR)/s4-03-root s4/03_root-ext2/rootfs.ext2 512k
 	sha256sum s4/03_root-ext2/rootfs.ext2
+
+# ---- S4 工程 5 (04_busybox：busybox 移植，ramdisk 扩到 1MB) ----
+flash-s4-04-bootloader: all
+	picotool load -fu --ignore-partitions $(BUILD_DIR)/s4/04_busybox/s4-04-bootloader.uf2
+
+flash-s4-04-kernel: all
+	# 本关重编内核：BLK_DEV_RAM_SIZE=512 → 1024
+	picotool load -fv -p 0 -t bin s4/04_busybox/kernel-Image
+
+flash-s4-04-dtb: $(BUILD_DIR)/s4/04_busybox/rp2350a-minimal.dtb
+	picotool load -fv -p 1 -t bin $(BUILD_DIR)/s4/04_busybox/rp2350a-minimal.dtb
+
+flash-s4-04-rootfs: image-s4-04
+	# 分区 2 = raw ext2（含 busybox + 符号链接），1MB
+	picotool load -fv -p 2 -t bin s4/04_busybox/rootfs.ext2
+
+$(BUILD_DIR)/s4/04_busybox/rp2350a-minimal.dtb: s4/04_busybox/dts/rp2350a-minimal.dts s4/04_busybox/dts/rp2350a.dtsi | $(BUILD_DIR)
+	mkdir -p $(BUILD_DIR)/s4/04_busybox
+	cpp -nostdinc -I s4/04_busybox/dts -undef -x assembler-with-cpp \
+	    -o $(BUILD_DIR)/s4/04_busybox/rp2350a-minimal.dts.pre $<
+	dtc -I dts -O dtb -o $@ $(BUILD_DIR)/s4/04_busybox/rp2350a-minimal.dts.pre
+
+# ---- S4-04 rootfs：/init 启动器 + buildroot busybox + applet 符号链接 ----
+INITRAMFS_S44_SRC := s4/04_busybox/initramfs-src
+INITRAMFS_S44_DIR := s4/04_busybox/initramfs
+BUILDROOT_BUSYBOX := /home/developer/buildroot-2026.05.2/output/target/bin/busybox
+
+init-s4-04: $(INITRAMFS_S44_SRC)/init.c $(INITRAMFS_S44_SRC)/init.ld scripts/pack-bflt.sh
+	mkdir -p $(BUILD_DIR) $(INITRAMFS_S44_DIR)
+	riscv64-linux-gnu-gcc -march=rv32imac -mabi=ilp32 -fPIC -mno-relax \
+	    -msmall-data-limit=0 -nostdlib -no-pie -O2 -fno-builtin -Wall -Wextra \
+	    -T $(INITRAMFS_S44_SRC)/init.ld -o $(BUILD_DIR)/init-s4-04.elf $(INITRAMFS_S44_SRC)/init.c
+	scripts/pack-bflt.sh $(BUILD_DIR)/init-s4-04.elf $(INITRAMFS_S44_DIR)/init
+
+busybox-s4-04: $(BUILDROOT_BUSYBOX)
+	cp $(BUILDROOT_BUSYBOX) s4/04_busybox/busybox
+	@test $$(stat -c %s s4/04_busybox/busybox) -le 1048576 || { \
+		echo "ERROR: busybox 超过分区 2 的 1MB 上限"; \
+		exit 1; }
+	sha256sum s4/04_busybox/busybox
+
+# 与 buildroot busybox-minimal.config 匹配的 applet（/bin 下符号链接 → busybox）
+BB_APPLETS := sh ls cat echo mount mkdir rm cp mv df pwd true false sleep ps uname dmesg grep sed head tail cut date dd chmod ln
+
+image-s4-04: init-s4-04 busybox-s4-04
+	mkdir -p $(BUILD_DIR)/s4-04-root/dev $(BUILD_DIR)/s4-04-root/bin $(BUILD_DIR)/s4-04-root/tmp $(BUILD_DIR)/s4-04-root/proc
+	cp $(INITRAMFS_S44_DIR)/init $(BUILD_DIR)/s4-04-root/init
+	cp s4/04_busybox/busybox $(BUILD_DIR)/s4-04-root/bin/busybox
+	for a in $(BB_APPLETS); do ln -sf busybox $(BUILD_DIR)/s4-04-root/bin/$$a; done
+	chmod 01777 $(BUILD_DIR)/s4-04-root/tmp
+	rm -f s4/04_busybox/rootfs.ext2
+	mkfs.ext2 -q -F -b 1024 -m 0 -d $(BUILD_DIR)/s4-04-root s4/04_busybox/rootfs.ext2 1024k
+	sha256sum s4/04_busybox/rootfs.ext2
+
+# ---- S4-04 内核（BLK_DEV_RAM_SIZE=1024）：build-rv32-s4-04 ----
+$(KERNEL_SRC)/build-rv32-s4-04/.config: $(CURDIR)/s4/04_busybox/rp2350_minimal_defconfig
+	mkdir -p $(KERNEL_SRC)/build-rv32-s4-04
+	cp $(CURDIR)/s4/04_busybox/rp2350_minimal_defconfig $(KERNEL_SRC)/build-rv32-s4-04/.config
+	cd $(KERNEL_SRC) && make ARCH=riscv CROSS_COMPILE=$(KERNEL_CROSS) O=build-rv32-s4-04 olddefconfig
+
+kernel-s4-04: $(KERNEL_SRC)/build-rv32-s4-04/.config
+	cd $(KERNEL_SRC) && make ARCH=riscv CROSS_COMPILE=$(KERNEL_CROSS) O=build-rv32-s4-04 -j$$(nproc) Image
+	cp $(KERNEL_SRC)/build-rv32-s4-04/arch/riscv/boot/Image s4/04_busybox/kernel-Image
+	@test $$(stat -c %s s4/04_busybox/kernel-Image) -le 3145728 || { \
+		echo "ERROR: kernel Image 超过分区 0 的 3MB 上限，需要先扩分区"; \
+		exit 1; }
+	sha256sum s4/04_busybox/kernel-Image
 
 # ---- S3-05 /init（NOMMU 只能用 FLAT 格式，手搓 bFLT）----
 INITRAMFS_SRC := s3/05_shell/initramfs-src
