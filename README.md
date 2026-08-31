@@ -14,10 +14,17 @@
 | S3-01 | `s3/01_earlycon/` | AMO/amocas 模拟器跨墙，earlycon 出字 + 故意看到 init_IRQ panic | ✅ |
 | S3-02 | `s3/02_timer/` | 定时器链：init_IRQ panic 消失、jiffies 动起来 | ✅ |
 | S3-03 | `s3/03_irq/` | Xh3irq 外设中断：软件触发 IRQ 33 → handler 输出 `!`；ttyAMA0 console 提前打通 | ✅ |
-| S3-04 | 待建 | 真 console 收尾（VT 恢复、console 参数） | ⬜ |
-| S3-05 | 待建 | 板子上进 shell（initramfs + busybox） | ⬜ |
+| S3-04 | `s3/04_console/` | 真 console 收尾：ttyAMA0 确定接管日志（sbsa-uart 定案） | ✅ |
+| S3-05 | `s3/05_shell/` | 板子串口进 shell（initramfs + 自写 /init，`# hello` → Hello, world!） | ✅ |
+| S4-00 | `s4/00_boot-initramfs/` | rootfs 独立分区：bootloader 拷 initramfs，改 rootfs 不重烧内核 | ✅ |
+| S4-01 | `s4/01_exec-hello/` | shell 调用外部程序 /bin/hello（NOMMU 进程创建：vfork/execve/waitid） | ✅ |
+| S4-02 | `s4/02_ext2/` | ext2 真实文件系统 on brd（RAM 块设备挂真实文件系统格式） | ✅ |
+| S4-03 | `s4/03_root-ext2/` | 根切 ext2：内核 legacy initrd 链直接挂根，执行根里 /init | ✅ |
+| S4-04 | （待建） | busybox 移植（riscv32 NOMMU 用户态工具链 + bFLT 转换） | 🔄 工具链构建中 |
 
-当前板子里烧的是 S3-03 的干净内核（启动日志到 `Kernel panic: VFS: Unable to mount root fs`——没有 rootfs 的**预期终点**）。
+当前板子里是 S4-03 工程（banner `s4-03 root-ext2`）：根切 ext2 + `# hello` shell。S4-04 的 buildroot 工具链（uClibc-ng + elf2flt）下载卡在代理，构建暂停中——最新状态以 [`notes/学习地图.md`](notes/学习地图.md) 的"现在在哪"为准。
+
+**接下来**：S4-04 busybox → S4-05+ 文件系统延伸 → S5 裁剪优化（bootloader 频率、内核压缩、zram）→ S6 RP2350 外设控制器（i2c/spi/watchdog/dma/pio）→ S7 双核 AMP + rpmsg → S8 电源管理（CCF 时钟树 / CPU idle / DVFS）。
 
 ## 快速开始（跟着做就能看到日志）
 
@@ -29,7 +36,7 @@
 
 ### 1.5 准备工具链与内核源码
 
-本项目需要**两套 RISC-V 工具链**，各管一段：
+本项目需要**两套 RISC-V 工具链**，各管一段（S4-04 busybox 会加第三套：riscv32 用户态 uClibc-ng + elf2flt，由 buildroot 生成，构建中）：
 
 **① bootloader 工具链（RISC-V 裸机，编译 pico-sdk 固件）**
 
@@ -76,47 +83,48 @@ cd ~/raspberrypi/pico-sdk && git submodule update --init
 
 ```sh
 make all                        # 编译全部 bootloader（不要加 sudo）
-make build/s3/03_irq/rp2350a-minimal.dtb   # 编译 03 的 DTB
-make kernel-s3-03               # 一键：配置 → 编译内核 → 拷贝到工程目录
+make image-s4-03                # 本关 rootfs：mkfs.ext2 → rootfs.ext2（含 /init、/bin/hello、/dev）
 ```
 
-内核源码在 `/home/developer/linux-7.2`，构建目录 `build-rv32-03`（out-of-tree，不污染源码树）。每个工程一份**完整 defconfig**，构建时拷进构建目录做 `.config` 种子再 `olddefconfig`。
+内核源码在 `/home/developer/linux-7.2`，构建目录 `build-rv32-s4-02`（out-of-tree，不污染源码树）。S4-03 无内核改动，复用 S4-02 内核；重编用 `make kernel-s4-02`。每个工程一份**完整 defconfig**，构建时拷进构建目录做 `.config` 种子再 `olddefconfig`（不用 merge_config 碎片）。
 
 ### 3. 烧录（BOOTSEL 模式）
 
 ```sh
-make flash-s3-03-bootloader
+make flash-s4-03-bootloader
 # 拔线 → 按住 BOOTSEL 重新插线
-make flash-s3-03-kernel
-make flash-s3-03-dtb
+make flash-s4-03-kernel       # 复用 S4-02 内核
+make flash-s4-03-dtb          # bootargs 变了，必须重烧
+make flash-s4-03-rootfs       # 分区 2 = raw ext2 镜像
 ```
 
 ### 4. 观察
 
-上电看串口（115200）。预期：bootloader 拷贝日志 → 内核 banner → `ttyAMA0 ... is a SBSA` → console 接管 → 一路到 VFS 无 rootfs panic（当前阶段终点）。
+上电看串口（115200）。预期：bootloader 拷贝日志（`copy rootfs ...`）→ `RAMDISK: ext2 filesystem found at block 0` → deprecated 警告（**预期**，不是错）→ **`VFS: Mounted root (ext2 filesystem) readonly on device 1:0.`** → `Run /init as init process` → `S4-03 root ext2` → `# hello` → `Hello, world!`。
 
 ### 5. 调试（真板卡死时）
 
 ```sh
-sudo openocd -f interface/cmsis-dap.cfg -c "set USE_CORE rv0" -f target/rp2350.cfg -c "adapter speed 2000"
+scripts/start-openocd.sh      # 一键起 openocd（cmsis-dap + rp2350.cfg）
 ```
 
 ```text
-gdb-multiarch /home/developer/linux-7.2/build-rv32-03/vmlinux
+gdb-multiarch /home/developer/linux-7.2/build-rv32-s4-02/vmlinux
 set architecture riscv:rv32
 target remote :3333
 monitor reset halt
 ```
 
-完整教程（断点/单步/源码/寄存器/TUI 分屏/抓第一现场）：[`notes/OpenOCD-GDB调试教程.md`](notes/OpenOCD-GDB调试教程.md)。
+辅助排查脚本（vmlinux 都是第一个参数）：`scripts/pc-locate.sh <vmlinux> <pc>`（PC → 反汇编/符号/源文件）、`scripts/log-analyze.sh <vmlinux> <日志>`（Call Trace 批量翻译带行号）、`scripts/gdb-dump.sh <vmlinux>`（一键抓现场）。完整教程（断点/单步/源码/寄存器/TUI 分屏/抓第一现场）：[`notes/OpenOCD-GDB调试教程.md`](notes/OpenOCD-GDB调试教程.md)。
 
 ## 目录结构
 
 ```text
 s1/             S1：分区表 + bootloader + 假镜像
-s2/             S2：QEMU 跑真内核（config 碎片已废弃，保留脚本）
-s3/             按里程碑分工程：00_amowall / 01_earlycon / 02_timer / 03_irq
-                  （每个工程自带 README 实验手册 + bootloader + dts + kernel-Image + 完整 defconfig）
+s2/             S2：QEMU 跑真内核
+s3/             00_amowall … 05_shell（每关：README 实验手册 + bootloader + dts + kernel-Image + 完整 defconfig）
+s4/             00_boot-initramfs … 03_root-ext2（文件系统篇；S4-04 busybox 待建）
+scripts/        排查脚本（start-openocd / pc-locate / log-analyze / gdb-dump / verify-images / diff-kernels / pack-bflt）
 tests/          PSRAM 测试程序（amo-test、xip-stress 等）
 boards/         自研板 pico-sdk 板级头文件
 notes/          学习真源：学习地图 / 学习记录 / 实验日志 / 各种速查
@@ -126,7 +134,7 @@ PLAN.md         产品与工程现状（真源之一）
 ## 怎么学（文档导航）
 
 - [`notes/学习地图.md`](notes/学习地图.md) —— 项目全景 + 当前进度 + AI 续学交接单（新对话先读它）
-- [`notes/学习记录/`](notes/学习记录/) —— 每关一篇复盘文（S3-01 五关踩坑、S3-02 定时器链、S3-03 Xh3irq）
+- [`notes/学习记录/`](notes/学习记录/) —— 每关一篇复盘文（S3-01 完整踩坑、S3-02 定时器链、S3-03 Xh3irq、S4-00~S4-03 文件系统链）
 - [`notes/实验日志/`](notes/实验日志/) —— 真机原始日志存档
 - [`notes/内核AMO模拟器详解.md`](notes/内核AMO模拟器详解.md) —— 看不懂源码也能懂的逐段教学
 - [`notes/内核改动记录与溯源.md`](notes/内核改动记录与溯源.md) —— 每笔内核改动 + commit id，可 `git show` 溯源
@@ -143,6 +151,7 @@ PLAN.md         产品与工程现状（真源之一）
 - UART0 是 ARM PL011（`arm,sbsa-uart` compatible 接入——RISC-V 无 AMBA 总线，platform 驱动版本零内核改动可用）
 - 中断：标准 `riscv,cpu-intc`（MTIP/MEIP）+ 自定义 **Xh3irq**（52 线 CSR 数组，非标准 PLIC，自写 irqchip）
 - 定时器：SIO MTIME/MTIMECMP，1MHz tick（与 sys_clk 解耦），自写 clocksource/clockevent
+- 根文件系统：分区 2（1MB）放 raw ext2 镜像，bootloader 拷到 PSRAM `0x11300000`，DTB `linux,initrd-*` 指向它；内核走 legacy initrd（populate_rootfs 兜底存 `/initrd.image` → rd_load_image 拷进 brd `/dev/ram0` → mount_root 按 `root=/dev/ram` 挂 ext2 为根 → 执行根里 `/init`）
 
 ### 三大硬件墙（本项目最值钱的经验）
 
@@ -152,11 +161,13 @@ PLAN.md         产品与工程现状（真源之一）
 
 ### 内核改动
 
-全部 8 笔提交（含已回退的临时补丁）与动机，见 [`notes/内核改动记录与溯源.md`](notes/内核改动记录与溯源.md)。配置走**完整 defconfig**（每个工程一份），不用 merge_config 碎片（alldefconfig 会打开 MMU、savedefconfig 会丢 `ARCH_RV32I`）。
+全部 10 笔提交（含已回退的临时补丁）与动机，见 [`notes/内核改动记录与溯源.md`](notes/内核改动记录与溯源.md)。配置走**完整 defconfig**（每个工程一份），不用 merge_config 碎片（alldefconfig 会打开 MMU、savedefconfig 会丢 `ARCH_RV32I`）。
 
 ## 已知边界
 
-- 单核（SMP=n）；Xh3irq 全同优先级（16 级抢占未做）
+- 单核（SMP=n）；**SMP 不做**（riscv NOMMU 无 MMU/SBI，双核走 AMP + rpmsg，S7 计划）
+- 根挂载默认只读（要写根，bootargs 加 `rw`）；legacy initrd 已 deprecated（2027-01 移除，当前为教学走老链）
+- rootfs 载体是 brd RAM 盘：**断电即失**（持久化要 flash 驱动 + jffs2/ubifs，S6/S8 候选）
 - rv32 的 64 位原子（cmpxchg64）仍是 LR/SC，未收口
 - 真实 UART RX 中断需要 tty open（进 shell 后自然可用）
 - 挂起板 Waveshare RP2350B-Plus-W（PSRAM 写卡死，等硬件排查）
