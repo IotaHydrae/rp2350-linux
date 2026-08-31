@@ -6,7 +6,7 @@
  * 符号链接，busybox 按 argv[0] 分发成 ash，PID 1 就变成 busybox ash。
  *
  * 和 S4-03 的差别：不再自己解析命令（那活交给 busybox），只负责把 stdio、
- * 可写 /tmp 和 /proc 准备好，然后把控制权交给 ash。
+ * 可写 /tmp、/proc 和 /sys 准备好，然后把控制权交给 ash。
  *
  * 无 libc：NOMMU 内核只有 FLAT 格式，bFLT 由 scripts/pack-bflt.sh 手搓；
  * 系统调用用 ecall 内联汇编。
@@ -99,6 +99,9 @@ __attribute__((section(".text.start"))) void _start(void)
 	/* ps/dmesg 等 applet 读 /proc（内核 CONFIG_PROC_FS=y，失败不阻塞） */
 	do_mkdirat("/proc", 0555);
 	do_mount("proc", "/proc", "proc");
+	/* 设备树/驱动信息在 /sys（sysfs 虚拟文件系统，失败不阻塞） */
+	do_mkdirat("/sys", 0555);
+	do_mount("sysfs", "/sys", "sysfs");
 
 	/* 栈上现拼 argv/envp（静态指针数组会产生数据重定位，pack-bflt.sh 会拒） */
 	argv[0] = "sh";

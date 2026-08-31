@@ -375,7 +375,7 @@ busybox-s4-04: $(BUILDROOT_BUSYBOX)
 BB_APPLETS := sh ls cat echo mount mkdir rm cp mv df pwd true false sleep ps uname dmesg grep sed head tail cut date dd chmod ln
 
 image-s4-04: init-s4-04 busybox-s4-04
-	mkdir -p $(BUILD_DIR)/s4-04-root/dev $(BUILD_DIR)/s4-04-root/bin $(BUILD_DIR)/s4-04-root/tmp $(BUILD_DIR)/s4-04-root/proc
+	mkdir -p $(BUILD_DIR)/s4-04-root/dev $(BUILD_DIR)/s4-04-root/bin $(BUILD_DIR)/s4-04-root/tmp $(BUILD_DIR)/s4-04-root/proc $(BUILD_DIR)/s4-04-root/sys
 	cp $(INITRAMFS_S44_DIR)/init $(BUILD_DIR)/s4-04-root/init
 	cp s4/04_busybox/busybox $(BUILD_DIR)/s4-04-root/bin/busybox
 	for a in $(BB_APPLETS); do ln -sf busybox $(BUILD_DIR)/s4-04-root/bin/$$a; done
