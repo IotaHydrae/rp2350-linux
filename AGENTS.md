@@ -57,6 +57,11 @@ Note: after flashing firmware with an embedded partition table, reboot the devic
 
 ## Agent-Specific Instructions
 
+- **buildroot 仓库（/home/developer/buildroot-2026.05.2）提交规则（2026-08-31 用户拍板）**：
+  - **不要每次改动都提交**：同一阶段/同一特性的相关改动（defconfig、busybox applet 集合、rootfs 打包配置等）攒起来，合并成一个提交再提交（实例：S4-04/S4-05 的 5 笔已合并为 1 笔 `fdc1291f`）。
+  - 提交消息同样带完整正文（做了什么 + 为什么），subject 风格 `rp2350: <动词短语>`，结尾 `Signed-off-by: Wooden Chair <hua.zheng@embeddedboys.com>`。
+  - 未验收/临时的配置微调不提交，真机验收通过后合并提交。
+
 - This repo follows the build-to-learn workflow: read `notes/学习地图.md` first (AI continuation map), then `PLAN.md`; keep both updated when plans change.
 - Keep the workspace organized: stage work under `sN/`, tests under `tests/`, build artifacts gitignored (`build/`, `build-rv32/`).
 - User convention: when requirements or project structure change, update this `AGENTS.md`.

@@ -55,7 +55,7 @@ busybox 要 libc，NOMMU 下 libc 只能是 uClibc-ng（musl/glibc 不支持 NOM
 
 ### 第四根枝：行编辑
 
-最小化配置把 `FEATURE_EDITING` 裁了，hush 没有自己的行编辑器，TAB 补全没了、Ctrl+C 不取消、backspace 因 tty 默认 erase 是 ^? 而回显 ^H。开回 `FEATURE_EDITING + FEATURE_TAB_COMPLETION + FANCY_PROMPT + HISTORY=50`（buildroot `244050c5`），只涨 7KB，shell 体验完整。
+最小化配置把 `FEATURE_EDITING` 裁了，hush 没有自己的行编辑器，TAB 补全没了、Ctrl+C 不取消、backspace 因 tty 默认 erase 是 ^? 而回显 ^H。开回 `FEATURE_EDITING + FEATURE_TAB_COMPLETION + FANCY_PROMPT + HISTORY=50`（buildroot 合并提交 `fdc1291f`，S4-04/S4-05 的 5 笔已合 1），只涨 7KB，shell 体验完整。
 
 ## 验收（2026-08-31 ✅）
 

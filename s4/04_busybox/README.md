@@ -12,7 +12,7 @@
 
 ## 决策（2026-08-31 用户拍板）
 
-- 工具链路线 → **buildroot 当工具链工厂**（`qemu_riscv32_nommu_virt_defconfig` 裁剪掉内核/QEMU，只留工具链+elf2flt+busybox），已建 git 仓库（首提交无改动 `7729990a` + 我们的 defconfig `560114f5`）。
+- 工具链路线 → **buildroot 当工具链工厂**（`qemu_riscv32_nommu_virt_defconfig` 裁剪掉内核/QEMU，只留工具链+elf2flt+busybox），已建 git 仓库（首提交无改动 `7729990a` + 我们的 rp2350 rootfs 配置合并提交 `fdc1291f`）。
 - **修掉浮点坑**：QEMU defconfig 默认 RISC-V 变体 G(imafd)/ilp32d（QEMU CPU 带 F/D），Hazard3 是 RV32IMAC 无 F/D → 改 `BR2_riscv_custom` + 关 F/D + 开 C + `ilp32`，clean 重编。
 - busybox 尺寸方案 → **方案 A：扩 ramdisk 到 1MB**（默认 applet 集先跑通，S5 再裁）。
 
