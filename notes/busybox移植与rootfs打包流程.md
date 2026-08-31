@@ -123,6 +123,8 @@ make flash-s4-04-rootfs    # 内核/DTB/bootloader 不变时只需重烧这一�
 
 修复逻辑：裁 busybox 让 exec 只要 256KB（order-6）；镜像缩到 384KB 后 brd 只从 initrd 释放区底部拿 96 页，**上半块 512KB 保持完整**（order-7），够两个 256KB 请求切。
 
+> 完整机制（buddy order、8MB 布局、启动时序逐帧、失败账本逐项、修复原理）：见 [`NOMMU连续内存与分配失败详解.md`](NOMMU连续内存与分配失败详解.md)。
+
 ## 排障速查
 
 - 外部 applet 段错误 / `nommu: Allocation of length ... failed` / `page allocation failure: order:N` → 连续内存不够：裁 busybox 或缩镜像，或上 XIP（S5）。
