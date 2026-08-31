@@ -27,11 +27,12 @@ flowchart LR
 
 ### 裁剪刀①：内核 config 瘦身（2026-08-31 ✅ 编译，待真机验证）
 
-- **砍掉**：`SERIAL_8250`（~30KB）、`VIRTIO_*`（core/blk/mmio/anchor ~25KB）、`SG_POOL`（virtio_blk 带入）、`MSDOS/EFI_PARTITION`（~10KB，注意 `# CONFIG_MSDOS_PARTITION is not set` 对隐藏符号不生效，必须 `PARTITION_ADVANCED=y` + 显式关才能真去掉）。
-- **保留**：PL011/sbsa console、VT、INPUT、RP2350 timer/xh3irq、ext2/brd/initrd、ARCH_VIRT（其 select 的 GOLDFISH/POWER_RESET 很小，留着）。
-- **结果**：Image 2,801,576 → **2,737,296**（-64KB，2.3%）；Image.gz 1,387,495 → 1,351,015。
-- **结论**：config 瘦身空间有限（内核 text 1.66MB 是 mm/fs/tty 本体）；**flash 大头靠 Image.gz（压缩率 ~50%）**。
-- **剩余候选（待用户审）**：PLIC/APLIC/IMSIC/MSI/CLINT 等未用中断/定时器驱动 ~20KB（DT 无节点不会 probe，可安全砍）；VT/INPUT 用户已拍保留。
+- **第一刀（2026-08-31）**：砍 `SERIAL_8250`（~30KB）、`VIRTIO_*`（~25KB）、`SG_POOL`、`MSDOS/EFI_PARTITION`（~10KB）→ Image 2.80→2.74MB。坑：**隐藏符号的 `# is not set` 不生效**（PARTITION_ADVANCED=n 时 MSDOS/EFI 仍是 default y），必须 `PARTITION_ADVANCED=y` + 显式关。
+- **第二刀（用户拍板 rootfs 切 cpio）**：**整个 BLOCK 层关掉**（`# CONFIG_BLOCK is not set`）→ ext2/brd/分区解析全消失（text -253KB）；`RISCV_APLIC/RISCV_IMSIC/SIFIVE_PLIC` 是 **arch 无条件 select**，defconfig 关不掉 → 动 `arch/riscv/Kconfig` 删 3 个 select（~18KB）。
+- **CLINT_TIMER 不能关（新坑）**：M 模式 arch `asm/timex.h` 的 `get_cycles64` 无条件引用 `clint_time_val`（定义在 timer-clint.c）；关掉后 `nm vmlinux` 显示 **U clint_time_val** + CHKREL bad relocation，rp2350 驱动 probe 时对地址 0 赋值必崩。保留（2.3KB）让 timer-clint.o 提供符号，rp2350 驱动继续接管赋值。
+- **结果**：Image 2,801,576 → **2,511,040**（-290KB，10.4%）；Image.gz → **1,226,042**。
+- **rootfs 机制翻案（用户拍板）**：legacy initrd + ext2 on brd 整套退役，切回 **cpio initramfs**（buildroot `BR2_TARGET_ROOTFS_CPIO`，315KB）；DTB bootargs 去 root=/dev/ram rootfstype=ext2；ext2/brd/BLOCK 等配置 S5-02 flash 路线再开。buildroot 提交点（格式切换）。
+- **结论**：BLOCK 层 + 未用中断控制器是最大头；**flash 空间大头靠 Image.gz（压缩率 ~50%）**，bootloader 解压下一步做。
 
 ## 验收
 

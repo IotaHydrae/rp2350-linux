@@ -13,7 +13,7 @@ QEMU_SCRIPT := s2/run-qemu.sh
         init-s4-03 hello-s4-03 image-s4-03 \
         kernel-s4-04 init-s4-04 busybox-s4-04 image-s4-04 \
         init-s4-05 rootfs-s4-05 \
-        kernel-s5-00 \
+        kernel-s5-00 init-s5-00 rootfs-s5-00 \
         flash-s5-00-bootloader flash-s5-00-kernel flash-s5-00-dtb flash-s5-00-rootfs \
         flash-s3-00-bootloader flash-s3-00-kernel flash-s3-00-dtb \
         flash-s3-01-bootloader flash-s3-01-kernel flash-s3-01-dtb \
@@ -454,9 +454,9 @@ flash-s5-00-kernel: kernel-s5-00
 flash-s5-00-dtb: $(BUILD_DIR)/s5/00_ram-trim/rp2350a-minimal.dtb
 	picotool load -fv -p 1 -t bin $(BUILD_DIR)/s5/00_ram-trim/rp2350a-minimal.dtb
 
-flash-s5-00-rootfs:
-	# 复用 S4-05 rootfs（512KB buildroot 组装），busybox 精细裁剪后再换
-	picotool load -fv -p 2 -t bin s4/05_buildroot-rootfs/rootfs.ext2
+flash-s5-00-rootfs: rootfs-s5-00
+	# 分区 2 = buildroot 生成的 rootfs.cpio（initramfs，cpio 解包为根）
+	picotool load -fv -p 2 -t bin s5/00_ram-trim/rootfs.cpio
 
 $(BUILD_DIR)/s5/00_ram-trim/rp2350a-minimal.dtb: s5/00_ram-trim/dts/rp2350a-minimal.dts s5/00_ram-trim/dts/rp2350a.dtsi | $(BUILD_DIR)
 	mkdir -p $(BUILD_DIR)/s5/00_ram-trim
@@ -478,6 +478,26 @@ kernel-s5-00: $(KERNEL_SRC)/build-rv32-s5-00/.config
 		echo "ERROR: kernel Image 超过分区 0 的 3MB 上限，需要先扩分区"; \
 		exit 1; }
 	sha256sum s5/00_ram-trim/kernel-Image s5/00_ram-trim/kernel-Image.gz
+
+# ---- S5-00 rootfs：/init 启动器（overlay 注入）+ buildroot cpio initramfs ----
+INITRAMFS_S500_SRC := s5/00_ram-trim/initramfs-src
+
+init-s5-00: $(INITRAMFS_S500_SRC)/init.c $(INITRAMFS_S500_SRC)/init.ld scripts/pack-bflt.sh
+	mkdir -p $(BUILD_DIR) s5/00_ram-trim/overlay
+	riscv64-linux-gnu-gcc -march=rv32imac -mabi=ilp32 -fPIC -mno-relax \
+	    -msmall-data-limit=0 -nostdlib -no-pie -O2 -fno-builtin -Wall -Wextra \
+	    -T $(INITRAMFS_S500_SRC)/init.ld -o $(BUILD_DIR)/init-s5-00.elf $(INITRAMFS_S500_SRC)/init.c
+	scripts/pack-bflt.sh $(BUILD_DIR)/init-s5-00.elf s5/00_ram-trim/overlay/init
+
+rootfs-s5-00: init-s5-00
+	# 重新应用 defconfig（EXT2→CPIO 目标切换，buildroot 不会自动感知 defconfig 变更）→ 组装 rootfs 出 cpio
+	cd $(BUILDROOT_DIR) && PATH=/tmp/brhostbin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin make rp2350_nommu_defconfig
+	cd $(BUILDROOT_DIR) && PATH=/tmp/brhostbin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin make
+	cp $(BUILDROOT_DIR)/output/images/rootfs.cpio s5/00_ram-trim/rootfs.cpio
+	@test $$(stat -c %s s5/00_ram-trim/rootfs.cpio) -le 1048576 || { \
+		echo "ERROR: rootfs.cpio 超过分区 2 的 1MB 上限"; \
+		exit 1; }
+	sha256sum s5/00_ram-trim/rootfs.cpio
 
 # ---- S3-05 /init（NOMMU 只能用 FLAT 格式，手搓 bFLT）----
 INITRAMFS_SRC := s3/05_shell/initramfs-src

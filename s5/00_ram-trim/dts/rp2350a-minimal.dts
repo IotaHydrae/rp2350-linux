@@ -3,10 +3,10 @@
  * RP2350A-Minimal 板级设备树（自研板：16MB flash、8MB PSRAM CS1=GPIO0、
  * UART0 GP16/17 @115200）。
  *
- * 05_buildroot-rootfs：分区 2 放 buildroot 生成的 raw ext2 镜像，bootloader 拷到固定 RAM 地址；
- * DTB 用 linux,initrd-start/end 描述，走 legacy initrd（不再是 cpio initramfs）：
- *   populate_rootfs 解不开 ext2 → 原样存 /initrd.image →
- *   prepare_namespace 的 initrd_load 把它拷进 /dev/ram0 → mount_root 挂根。
+ * S5-00：分区 2 放 buildroot 生成的 rootfs.cpio（initramfs），bootloader 拷到固定 RAM 地址；
+ * DTB 用 linux,initrd-start/end 描述，populate_rootfs 按 cpio 魔数解包成初始 rootfs。
+ * 内核 CONFIG_BLOCK/EXT2/BLK_DEV_RAM 已关，legacy initrd / ext2 on brd 那套暂时退役，
+ * S5-02 flash 路线再开（MTD + 文件系统格式切换）。
  */
 /dts-v1/;
 
@@ -17,13 +17,11 @@
 	compatible = "rp2350a-minimal", "raspberrypi,rp2350";
 
 	chosen {
-		/* root=/dev/ram：parse_root_device 特判成 Root_RAM0（ramdisk 主设备 1:0）。
-		 * 不要写 root=/dev/ram0：devtmpfs 在 mount_root 之后才挂，解析时节点
-		 * 还不存在，early_lookup_bdev 会失败。
-		 * init=/init：根挂载完成后显式执行根里的 /init（不靠 /sbin/init 静默搜索）。
-		 * linux,initrd-*：bootloader 把分区 2（raw ext2）拷到 0x11300000（固定约定，
+		/* initramfs 根：不需要 root=（初始 rootfs 有 /init 时 prepare_namespace 被跳过）。
+		 * init=/init：显式执行根里的 /init（不靠 /sbin/init 静默搜索）。
+		 * linux,initrd-*：bootloader 把分区 2（rootfs.cpio）拷到 0x11300000（固定约定，
 		 * 与 bootloader main.c 的 ROOTFS_LOAD_ADDR 一致）。 */
-		bootargs = "earlycon=pl011,mmio32,0x40070000,115200n8 console=ttyAMA0 root=/dev/ram rootfstype=ext2 init=/init";
+		bootargs = "earlycon=pl011,mmio32,0x40070000,115200n8 console=ttyAMA0 init=/init";
 		linux,initrd-start = <0x11300000>;
 		linux,initrd-end = <0x11400000>;
 	};
