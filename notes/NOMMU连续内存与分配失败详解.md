@@ -130,6 +130,20 @@ brd 只写 384KB = **96 个 order-0 页**。buddy 从 initrd 释放的 1MB 整�
 - **碎片源要控制**：块设备（brd）按页写的背面、临时大文件（/initrd.image）、page cache，都是大块的杀手；镜像越小、临时大文件越少，碎片越轻；
 - **排查口诀**：`page allocation failure: order:N` + `Mem-Info` 里的自由列表 → 先看最大块，不是看 free 总量。
 
+## 8.5 缓解方向：内存墙怎么破（2026-08-31 分析）
+
+**文件系统上 flash 分两层受益**：
+- **载体层（MTD 挂载 jffs2/ubifs）**：rootfs 不再占 RAM（initrd 窗口 1MB + brd 盘面 512KB-1MB 全还回来），且 **brd 这个最大碎片源消失**——自由内存多 ~1.5-2MB 且更连续。这是"缓解"。
+- **执行层（XIP）**：text 留在 flash 只读映射，进程只占 data+bss+stack（busybox 262KB→~150KB）——对"exec 连续内存墙"是根本解法。注意：**普通挂载 ≠ XIP**，jffs2 数据仍要读进 RAM 执行；XIP 需要 elf2flt 出 XIP bFLT + 内核 SEP_DATA 配置 + flash 地址对齐。flash 路线是 XIP 的前提（brd 块设备在 NOMMU 下无法 mmap XIP）。
+
+**当前环境降内存手段（按杠杆排序）**：
+1. 内核瘦身：Image 2.67MB 是最大头（S5 裁剪优化，可省 0.5-1MB）。
+2. 镜像再缩（512KB→384KB）：brd 少写 128KB，连续块 512KB→640KB。
+3. DTB initrd 窗口精确化：现在写死 1MB，/initrd.image 临时文件按 1MB 造；窗口改小则临时文件小、释放整齐。
+4. busybox 精细裁剪（S5）。
+5. XIP（结构性，等 flash 路线）。
+6. 行为层：内建命令优先（echo/cd/pwd 不 exec），避免同时跑多个外部命令。
+
 ## 9. 在系统里看 buddy（/proc 命令，板子 shell 里直接跑）
 
 内核崩溃/分配失败日志里的 `Mem-Info` 其实就来自这些 proc 文件，随时可以活着查：
