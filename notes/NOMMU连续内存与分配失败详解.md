@@ -130,6 +130,32 @@ brd 只写 384KB = **96 个 order-0 页**。buddy 从 initrd 释放的 1MB 整�
 - **碎片源要控制**：块设备（brd）按页写的背面、临时大文件（/initrd.image）、page cache，都是大块的杀手；镜像越小、临时大文件越少，碎片越轻；
 - **排查口诀**：`page allocation failure: order:N` + `Mem-Info` 里的自由列表 → 先看最大块，不是看 free 总量。
 
+## 9. 在系统里看 buddy（/proc 命令，板子 shell 里直接跑）
+
+内核崩溃/分配失败日志里的 `Mem-Info` 其实就来自这些 proc 文件，随时可以活着查：
+
+| 命令 | 看什么 | 对应崩溃日志 |
+|---|---|---|
+| `cat /proc/buddyinfo` | **每 zone 每个 order 的自由块个数**——判断"最大连续块有多大"的唯一依据 | `Normal: 70*4kB ... 1*256kB` 那行 |
+| `cat /proc/meminfo` | 总量账：MemFree/MemAvailable/Slab 等 | `free:674`、`slab_unreclaimable:234` |
+| `cat /proc/pagetypeinfo` | 自由块按 Unmovable/Reclaimable/Movable 细分（buddyinfo 里 `(U)` 的出处） | — |
+| `cat /proc/slabinfo` | slab 占用明细 | `slab_unreclaimable` |
+
+**buddyinfo 读法**：每行一个 zone，第 3 列起依次是 order-0、order-1、… 的自由块个数；块大小 = 4KB × 2^order。要判断"能不能再 exec 一个程序"，看它需要的 order 那列是否为 0：
+
+- 255KB busybox → order-6（256KB）列 ≥ 1；
+- 两个进程 → order-6 ≥ 2，或 order-7（512KB）≥ 1（能拆出俩）。
+
+**对照实验（验证 NOMMU 内存墙修复）**：
+
+```sh
+cat /proc/buddyinfo     # 刚进 shell：order-6/order-7 应该有货
+ls /                    # 跑一个外部命令（消耗一个 256KB 块）
+cat /proc/buddyinfo     # 再看：order-6/order-7 被消耗
+```
+
+注意：NOMMU 没有内存规整（compaction 需要页表），`/proc/sys/vm/compact_memory` 在无 MMU 内核上不可用——碎片只能靠"少制造"（小镜像、少临时大文件），不能靠事后合并。
+
 ## 代码出处
 
 - `mm/nommu.c` `do_mmap_private()`：`get_order(len)` + `alloc_pages_exact()`（幂次整块分配）
