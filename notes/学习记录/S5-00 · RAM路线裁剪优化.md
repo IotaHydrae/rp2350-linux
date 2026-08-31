@@ -32,6 +32,7 @@ flowchart LR
 - **CLINT_TIMER 不能关（新坑）**：M 模式 arch `asm/timex.h` 的 `get_cycles64` 无条件引用 `clint_time_val`（定义在 timer-clint.c）；关掉后 `nm vmlinux` 显示 **U clint_time_val** + CHKREL bad relocation，rp2350 驱动 probe 时对地址 0 赋值必崩。保留（2.3KB）让 timer-clint.o 提供符号，rp2350 驱动继续接管赋值。
 - **结果**：Image 2,801,576 → **2,511,040**（-290KB，10.4%）；Image.gz → **1,226,042**。
 - **rootfs 机制翻案（用户拍板）**：legacy initrd + ext2 on brd 整套退役，切回 **cpio initramfs**（buildroot `BR2_TARGET_ROOTFS_CPIO`，315KB）；DTB bootargs 去 root=/dev/ram rootfstype=ext2；ext2/brd/BLOCK 等配置 S5-02 flash 路线再开。buildroot 提交点（格式切换）。
+- **cpio 尾随 0xFF 误报坑（2026-08-31 真机）**：bootloader 拷整个分区（1MB）到 initrd 窗口，cpio 只有 315KB，尾部是 flash 擦除态 0xFF；内核解包器支持拼接归档、TRAILER 后继续扫，把 0xFF 当"下一个归档"报 `invalid magic at start of compressed archive`——**文件其实已解包完，纯误报**（async 解包 + initcall 交错，日志顺序 0.77s 解包→0.82s workingset→1.66s 报错）。修法：烧录镜像用 0x00 填充到 1MB（`dd conv=sync`，解包器跳过 NUL）。
 - **结论**：BLOCK 层 + 未用中断控制器是最大头；**flash 空间大头靠 Image.gz（压缩率 ~50%）**，bootloader 解压下一步做。
 
 ## 验收

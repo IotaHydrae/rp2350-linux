@@ -455,8 +455,8 @@ flash-s5-00-dtb: $(BUILD_DIR)/s5/00_ram-trim/rp2350a-minimal.dtb
 	picotool load -fv -p 1 -t bin $(BUILD_DIR)/s5/00_ram-trim/rp2350a-minimal.dtb
 
 flash-s5-00-rootfs: rootfs-s5-00
-	# 分区 2 = buildroot 生成的 rootfs.cpio（initramfs，cpio 解包为根）
-	picotool load -fv -p 2 -t bin s5/00_ram-trim/rootfs.cpio
+	# 分区 2 = rootfs.cpio.img（cpio + 0x00 填充到 1MB，见 rootfs-s5-00）
+	picotool load -fv -p 2 -t bin s5/00_ram-trim/rootfs.cpio.img
 
 $(BUILD_DIR)/s5/00_ram-trim/rp2350a-minimal.dtb: s5/00_ram-trim/dts/rp2350a-minimal.dts s5/00_ram-trim/dts/rp2350a.dtsi | $(BUILD_DIR)
 	mkdir -p $(BUILD_DIR)/s5/00_ram-trim
@@ -494,10 +494,13 @@ rootfs-s5-00: init-s5-00
 	cd $(BUILDROOT_DIR) && PATH=/tmp/brhostbin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin make rp2350_nommu_defconfig
 	cd $(BUILDROOT_DIR) && PATH=/tmp/brhostbin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin make
 	cp $(BUILDROOT_DIR)/output/images/rootfs.cpio s5/00_ram-trim/rootfs.cpio
+	# 分区尾部是 flash 擦除态 0xFF，内核解包器在 cpio TRAILER 后还会继续扫、把 0xFF 当"下一个归档"
+	# 报 invalid magic（文件其实已解包完，纯误报）→ 烧录镜像用 0x00 填充到 1MB（解包器跳过 NUL）
+	dd if=$(BUILDROOT_DIR)/output/images/rootfs.cpio of=s5/00_ram-trim/rootfs.cpio.img bs=1048576 count=1 conv=sync 2>/dev/null
 	@test $$(stat -c %s s5/00_ram-trim/rootfs.cpio) -le 1048576 || { \
 		echo "ERROR: rootfs.cpio 超过分区 2 的 1MB 上限"; \
 		exit 1; }
-	sha256sum s5/00_ram-trim/rootfs.cpio
+	sha256sum s5/00_ram-trim/rootfs.cpio s5/00_ram-trim/rootfs.cpio.img
 
 # ---- S3-05 /init（NOMMU 只能用 FLAT 格式，手搓 bFLT）----
 INITRAMFS_SRC := s3/05_shell/initramfs-src
