@@ -20,11 +20,12 @@
 | S4-01 | `s4/01_exec-hello/` | shell 调用外部程序 /bin/hello（NOMMU 进程创建：vfork/execve/waitid） | ✅ |
 | S4-02 | `s4/02_ext2/` | ext2 真实文件系统 on brd（RAM 块设备挂真实文件系统格式） | ✅ |
 | S4-03 | `s4/03_root-ext2/` | 根切 ext2：内核 legacy initrd 链直接挂根，执行根里 /init | ✅ |
-| S4-04 | （待建） | busybox 移植（riscv32 NOMMU 用户态工具链 + bFLT 转换） | 🔄 工具链构建中 |
+| S4-04 | `s4/04_busybox/` | busybox 移植（riscv32 NOMMU：uClibc + bFLT + hush + 行编辑） | ✅ |
+| S4-05 | `s4/05_buildroot-rootfs/` | buildroot 组装 rootfs（skeleton/overlay /init/ext2 目标），为 flash 路线铺路 | ✅ |
 
-当前板子里是 S4-03 工程（banner `s4-03 root-ext2`）：根切 ext2 + `# hello` shell。S4-04 的 buildroot 工具链（uClibc-ng + elf2flt）下载卡在代理，构建暂停中——最新状态以 [`notes/学习地图.md`](notes/学习地图.md) 的"现在在哪"为准。
+当前板子里是 S4-05 工程（banner `s4-05 buildroot-rootfs`）：buildroot 组装的 rootfs + busybox 29 applet。最新状态以 [`notes/学习地图.md`](notes/学习地图.md) 的"现在在哪"为准。
 
-**接下来**：S4-04 busybox → S4-05+ 文件系统延伸 → S5 裁剪优化（bootloader 频率、内核压缩、zram）→ S6 RP2350 外设控制器（i2c/spi/watchdog/dma/pio）→ S7 双核 AMP + rpmsg → S8 电源管理（CCF 时钟树 / CPU idle / DVFS）。
+**接下来**：S5 裁剪优化（内核瘦身/镜像/XIP/flash 路线）→ S6 RP2350 外设控制器（i2c/spi/watchdog/dma/pio）→ S7 双核 AMP + rpmsg → S8 电源管理（CCF 时钟树 / CPU idle / DVFS）。
 
 ## 快速开始（跟着做就能看到日志）
 

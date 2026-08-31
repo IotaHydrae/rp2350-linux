@@ -10,7 +10,7 @@
 
 - 烧录：电脑编译 bootloader + 镜像，用 picotool / openocd 烧进 16MB flash。
 - 上电：bootloader 初始化 PSRAM → 把镜像从 flash 拷到 `0x11000000` → 跳转 → 串口看到每步日志。
-- 里程碑：S1 假镜像链路 → S3-00 真内核在板子串口打出第一行字并**故意看到 panic**（init_IRQ "No interrupt controller found."）→ S3-01 earlycon 出字 + 故意 panic 验收 → S3-02 定时器链（jiffies 动）→ S3-03 Xh3irq 外设中断 → S3-04 真 console ✅ → **S3-05 进 shell ✅** → **S4 文件系统篇：S4-00 ✅（rootfs 独立烧录）→ S4-01 ✅（shell 调用外部程序）→ S4-02 ✅（ext2 真实文件系统 on brd）→ S4-03 ✅（根切 ext2）→ S4-04 🔄（busybox 移植）→ S4-05+（fs 延伸，待定）** → **S5 裁剪优化（bootloader 频率、内核压缩、zram，系统更轻快）** → **S6 RP2350 外设控制器（i2c/spi/watchdog/dma/pio，i2c/spi 用传感器/屏幕验收）** → **S7 双核 AMP + rpmsg（阶段拆分待定）** → **S8 电源管理（PM，范围待拍）**。
+- 里程碑：S1 假镜像链路 → S3-00 真内核在板子串口打出第一行字并**故意看到 panic**（init_IRQ "No interrupt controller found."）→ S3-01 earlycon 出字 + 故意 panic 验收 → S3-02 定时器链（jiffies 动）→ S3-03 Xh3irq 外设中断 → S3-04 真 console ✅ → **S3-05 进 shell ✅** → **S4 文件系统篇：S4-00 ✅（rootfs 独立烧录）→ S4-01 ✅（shell 调用外部程序）→ S4-02 ✅（ext2 真实文件系统 on brd）→ S4-03 ✅（根切 ext2）→ S4-04 ✅（busybox 移植）→ S4-05 ✅（buildroot 组装 rootfs，为 flash 路线铺路）** → **S5 裁剪优化（内核瘦身/镜像/XIP/flash 路线，方向已拍）** → **S6 RP2350 外设控制器（i2c/spi/watchdog/dma/pio，i2c/spi 用传感器/屏幕验收）** → **S7 双核 AMP + rpmsg（阶段拆分待定）** → **S8 电源管理（PM，CCF 时钟树 / CPU idle / DVFS）**。
 
 ## 形状与分工（已拍）
 
