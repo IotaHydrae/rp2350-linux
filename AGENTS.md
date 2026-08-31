@@ -49,6 +49,11 @@ Note: after flashing firmware with an embedded partition table, reboot the devic
 - Commit by feature/functionality (user convention), with conventional prefixes seen in history: `feat:`, `fix:`, `docs:`, `refactor:`.
 - Hardware-related changes should reference observed logs/phenomena.
 - PRs: describe what changed and why; include logs or screenshots where the change is only verifiable on hardware.
+- **内核仓库（linux-7.2）提交规则（2026-08-31 用户拍板）**：
+  - 提交消息**必须带完整正文**：做了什么 + 为什么这么做（机制/因果链），不能只有标题（实例：`d9024611b` 曾被写成空正文被点名补写）；**怎么验证不进内核提交**，放工程文档（学习地图/溯源）。
+  - subject 风格：`subsystem: driver: <动词短语>`（如 `irqchip: rp2350-xh3irq: flatten ...`），结尾 `Signed-off-by: Wooden Chair <hua.zheng@embeddedboys.com>`。
+  - **测试/临时改动不提交**：调试插桩留在工作树，验证通过后清理；只有正式修复才提交（用户拍板）。
+  - 工程内二进制镜像（kernel-Image / rootfs.ext2）随重编更新并提交。
 
 ## Agent-Specific Instructions
 
