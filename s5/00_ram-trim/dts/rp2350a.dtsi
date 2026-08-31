@@ -1,0 +1,67 @@
+// SPDX-License-Identifier: GPL-2.0
+/*
+ * RP2350A SoC 级设备树（工程按需增量，不一次性堆全）。
+ *
+ * 03_irq 在前一关（定时器链）基础上新增：
+ *   - xh3irq 中断控制器节点（Hazard3 自定义，非标准 PLIC；CSR 数组
+ *     0xbe0-0xbe5；52 条系统中断线聚合到 MIP.MEIP，cause 11）
+ *   - serial@40070000 用 "arm,sbsa-uart"（platform 驱动，RISC-V 无 AMBA
+ *     总线也能 probe）+ current-speed + interrupts = <&xh3irq 33>（UART0）
+ * 仍故意不做：16 级抢占（全同优先级）、真 console 参数（S3-04）。
+ */
+/dts-v1/;
+
+/ {
+	#address-cells = <1>;
+	#size-cells = <1>;
+
+	cpus {
+		#address-cells = <1>;
+		#size-cells = <0>;
+		timebase-frequency = <1000000>;
+
+		cpu@0 {
+			device_type = "cpu";
+			reg = <0>;
+			compatible = "riscv";
+			riscv,isa-base = "rv32i";
+			riscv,isa-extensions = "i", "m", "a", "c", "zicsr",
+						 "zifencei", "zba", "zbb", "zbs",
+						 "zbkb", "zca", "zcb", "zcmp";
+			riscv,isa = "rv32imac_zicsr_zifencei_zba_zbb_zbs_zbkb_zca_zcb_zmp";
+
+			cpu_intc: interrupt-controller {
+				#interrupt-cells = <1>;
+				compatible = "riscv,cpu-intc";
+				interrupt-controller;
+			};
+		};
+	};
+
+	xh3irq: interrupt-controller {
+		compatible = "raspberrypi,rp2350-xh3irq";
+		interrupt-controller;
+		#interrupt-cells = <1>;
+		interrupts-extended = <&cpu_intc 11>;
+	};
+
+	soc {
+		#address-cells = <1>;
+		#size-cells = <1>;
+		compatible = "simple-bus";
+		ranges;
+
+		timer@d0000000 {
+			compatible = "raspberrypi,rp2350-timer";
+			reg = <0xd0000000 0x1000>;
+			interrupts-extended = <&cpu_intc 7>;
+		};
+
+		serial@40070000 {
+			compatible = "arm,sbsa-uart";
+			reg = <0x40070000 0x1000>;
+			interrupts-extended = <&xh3irq 33>;
+			current-speed = <115200>;
+		};
+	};
+};

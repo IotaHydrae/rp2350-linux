@@ -13,6 +13,7 @@ QEMU_SCRIPT := s2/run-qemu.sh
         init-s4-03 hello-s4-03 image-s4-03 \
         kernel-s4-04 init-s4-04 busybox-s4-04 image-s4-04 \
         init-s4-05 rootfs-s4-05 \
+        flash-s5-00-bootloader flash-s5-00-kernel flash-s5-00-dtb flash-s5-00-rootfs \
         flash-s3-00-bootloader flash-s3-00-kernel flash-s3-00-dtb \
         flash-s3-01-bootloader flash-s3-01-kernel flash-s3-01-dtb \
         flash-s3-02-bootloader flash-s3-02-kernel flash-s3-02-dtb \
@@ -439,6 +440,28 @@ rootfs-s4-05: init-s4-05
 	cd $(BUILDROOT_DIR) && PATH=/tmp/brhostbin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin make
 	cp $(BUILDROOT_DIR)/output/images/rootfs.ext2 s4/05_buildroot-rootfs/rootfs.ext2
 	sha256sum s4/05_buildroot-rootfs/rootfs.ext2
+
+# ---- S5 工程 1 (00_ram-trim：裁剪优化①——RAM 路线轻量化，225MHz 起点) ----
+
+flash-s5-00-bootloader: all
+	picotool load -fu --ignore-partitions $(BUILD_DIR)/s5/00_ram-trim/s5-00-bootloader.uf2
+
+flash-s5-00-kernel: all
+	# 复用 S4-04 内核（sha 2fbb50ab），内核瘦身后切到本工程 kernel-Image
+	picotool load -fv -p 0 -t bin s4/04_busybox/kernel-Image
+
+flash-s5-00-dtb: $(BUILD_DIR)/s5/00_ram-trim/rp2350a-minimal.dtb
+	picotool load -fv -p 1 -t bin $(BUILD_DIR)/s5/00_ram-trim/rp2350a-minimal.dtb
+
+flash-s5-00-rootfs:
+	# 复用 S4-05 rootfs（512KB buildroot 组装），busybox 精细裁剪后再换
+	picotool load -fv -p 2 -t bin s4/05_buildroot-rootfs/rootfs.ext2
+
+$(BUILD_DIR)/s5/00_ram-trim/rp2350a-minimal.dtb: s5/00_ram-trim/dts/rp2350a-minimal.dts s5/00_ram-trim/dts/rp2350a.dtsi | $(BUILD_DIR)
+	mkdir -p $(BUILD_DIR)/s5/00_ram-trim
+	cpp -nostdinc -I s5/00_ram-trim/dts -undef -x assembler-with-cpp \
+	    -o $(BUILD_DIR)/s5/00_ram-trim/rp2350a-minimal.dts.pre $<
+	dtc -I dts -O dtb -o $@ $(BUILD_DIR)/s5/00_ram-trim/rp2350a-minimal.dts.pre
 
 # ---- S3-05 /init（NOMMU 只能用 FLAT 格式，手搓 bFLT）----
 INITRAMFS_SRC := s3/05_shell/initramfs-src
