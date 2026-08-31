@@ -21,6 +21,7 @@
 - **延迟到 S5**：模块动态加载（内核 CONFIG_MODULES + insmod/rmmod 工作流——注意 insmod applet 在无模块内核上会段错误，S5 一起加）、rz 传文件（lrzsz 依赖动态库、NOMMU 用不了——S5 计划手写 XMODEM 接收器）、vi（体积大）。
 - **inode 用满**（256 个，free=0）：以后要加文件，把 `EXT2_INODES` 调到 384（多占 ~32KB 数据空间，现余 108KB 够）。
 - **残留符号链接坑**：改 busybox applet 集合后，`output/target` 里旧 applet 的符号链接不会自动清（指向 busybox 会报 applet not found）——手动 `rm` 后重新 `make` 出镜像。
+- **并发进程上限 = 2**（内存墙边界，2026-08-31 实测）：hush + 一个外部命令 = 2×256KB 连续块正好占满 512KB 镜像留下的连续区；**管道含 2 个以上外部命令会段错误**（`dmesg | tail -10` = hush+dmesg+tail 三个进程，第 3 个 exec 分配失败）。绕过：顺序执行（`dmesg > /tmp/d && tail -10 /tmp/d`）。要跑 3 进程需 XIP / 内核瘦身 / flash 路线（S5）。
 
 ## 如何复现
 
