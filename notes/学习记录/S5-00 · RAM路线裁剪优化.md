@@ -25,7 +25,13 @@ flowchart LR
 
 ## 承重部件要点（施工中落）
 
-（待施工）
+### 裁剪刀①：内核 config 瘦身（2026-08-31 ✅ 编译，待真机验证）
+
+- **砍掉**：`SERIAL_8250`（~30KB）、`VIRTIO_*`（core/blk/mmio/anchor ~25KB）、`SG_POOL`（virtio_blk 带入）、`MSDOS/EFI_PARTITION`（~10KB，注意 `# CONFIG_MSDOS_PARTITION is not set` 对隐藏符号不生效，必须 `PARTITION_ADVANCED=y` + 显式关才能真去掉）。
+- **保留**：PL011/sbsa console、VT、INPUT、RP2350 timer/xh3irq、ext2/brd/initrd、ARCH_VIRT（其 select 的 GOLDFISH/POWER_RESET 很小，留着）。
+- **结果**：Image 2,801,576 → **2,737,296**（-64KB，2.3%）；Image.gz 1,387,495 → 1,351,015。
+- **结论**：config 瘦身空间有限（内核 text 1.66MB 是 mm/fs/tty 本体）；**flash 大头靠 Image.gz（压缩率 ~50%）**。
+- **剩余候选（待用户审）**：PLIC/APLIC/IMSIC/MSI/CLINT 等未用中断/定时器驱动 ~20KB（DT 无节点不会 probe，可安全砍）；VT/INPUT 用户已拍保留。
 
 ## 验收
 

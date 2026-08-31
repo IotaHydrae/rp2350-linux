@@ -13,6 +13,7 @@ QEMU_SCRIPT := s2/run-qemu.sh
         init-s4-03 hello-s4-03 image-s4-03 \
         kernel-s4-04 init-s4-04 busybox-s4-04 image-s4-04 \
         init-s4-05 rootfs-s4-05 \
+        kernel-s5-00 \
         flash-s5-00-bootloader flash-s5-00-kernel flash-s5-00-dtb flash-s5-00-rootfs \
         flash-s3-00-bootloader flash-s3-00-kernel flash-s3-00-dtb \
         flash-s3-01-bootloader flash-s3-01-kernel flash-s3-01-dtb \
@@ -446,9 +447,9 @@ rootfs-s4-05: init-s4-05
 flash-s5-00-bootloader: all
 	picotool load -fu --ignore-partitions $(BUILD_DIR)/s5/00_ram-trim/s5-00-bootloader.uf2
 
-flash-s5-00-kernel: all
-	# 复用 S4-04 内核（sha 2fbb50ab），内核瘦身后切到本工程 kernel-Image
-	picotool load -fv -p 0 -t bin s4/04_busybox/kernel-Image
+flash-s5-00-kernel: kernel-s5-00
+	# 本关重编内核（砍 QEMU 遗留 8250/virtio），Image.gz 已一并生成待解压验证
+	picotool load -fv -p 0 -t bin s5/00_ram-trim/kernel-Image
 
 flash-s5-00-dtb: $(BUILD_DIR)/s5/00_ram-trim/rp2350a-minimal.dtb
 	picotool load -fv -p 1 -t bin $(BUILD_DIR)/s5/00_ram-trim/rp2350a-minimal.dtb
@@ -462,6 +463,21 @@ $(BUILD_DIR)/s5/00_ram-trim/rp2350a-minimal.dtb: s5/00_ram-trim/dts/rp2350a-mini
 	cpp -nostdinc -I s5/00_ram-trim/dts -undef -x assembler-with-cpp \
 	    -o $(BUILD_DIR)/s5/00_ram-trim/rp2350a-minimal.dts.pre $<
 	dtc -I dts -O dtb -o $@ $(BUILD_DIR)/s5/00_ram-trim/rp2350a-minimal.dts.pre
+
+# ---- S5-00 内核（砍 QEMU 遗留 8250/virtio；PL011/VT/文件系统保留）：build-rv32-s5-00 ----
+$(KERNEL_SRC)/build-rv32-s5-00/.config: $(CURDIR)/s5/00_ram-trim/rp2350_minimal_defconfig
+	mkdir -p $(KERNEL_SRC)/build-rv32-s5-00
+	cp $(CURDIR)/s5/00_ram-trim/rp2350_minimal_defconfig $(KERNEL_SRC)/build-rv32-s5-00/.config
+	cd $(KERNEL_SRC) && make ARCH=riscv CROSS_COMPILE=$(KERNEL_CROSS) O=build-rv32-s5-00 olddefconfig
+
+kernel-s5-00: $(KERNEL_SRC)/build-rv32-s5-00/.config
+	cd $(KERNEL_SRC) && make ARCH=riscv CROSS_COMPILE=$(KERNEL_CROSS) O=build-rv32-s5-00 -j$$(nproc) Image Image.gz
+	cp $(KERNEL_SRC)/build-rv32-s5-00/arch/riscv/boot/Image s5/00_ram-trim/kernel-Image
+	cp $(KERNEL_SRC)/build-rv32-s5-00/arch/riscv/boot/Image.gz s5/00_ram-trim/kernel-Image.gz
+	@test $$(stat -c %s s5/00_ram-trim/kernel-Image) -le 3145728 || { \
+		echo "ERROR: kernel Image 超过分区 0 的 3MB 上限，需要先扩分区"; \
+		exit 1; }
+	sha256sum s5/00_ram-trim/kernel-Image s5/00_ram-trim/kernel-Image.gz
 
 # ---- S3-05 /init（NOMMU 只能用 FLAT 格式，手搓 bFLT）----
 INITRAMFS_SRC := s3/05_shell/initramfs-src
