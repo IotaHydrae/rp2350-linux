@@ -381,7 +381,8 @@ image-s4-04: init-s4-04 busybox-s4-04
 	for a in $(BB_APPLETS); do ln -sf busybox $(BUILD_DIR)/s4-04-root/bin/$$a; done
 	chmod 01777 $(BUILD_DIR)/s4-04-root/tmp
 	rm -f s4/04_busybox/rootfs.ext2
-	mkfs.ext2 -q -F -b 1024 -m 0 -d $(BUILD_DIR)/s4-04-root s4/04_busybox/rootfs.ext2 1024k
+	# 384K：busybox 255KB + 开销；brd 只写 384KB → initrd 释放区留 512KB 连续块给进程
+	mkfs.ext2 -q -F -b 1024 -m 0 -d $(BUILD_DIR)/s4-04-root s4/04_busybox/rootfs.ext2 384k
 	sha256sum s4/04_busybox/rootfs.ext2
 
 # ---- S4-04 内核（BLK_DEV_RAM_SIZE=1024）：build-rv32-s4-04 ----
