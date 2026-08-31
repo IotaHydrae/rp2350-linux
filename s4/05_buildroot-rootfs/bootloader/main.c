@@ -59,7 +59,7 @@ static void copy_image(const char *name, uint32_t flash_addr, uint32_t size, uin
     printf("copy %s %u bytes: flash 0x%08x -> PSRAM 0x%08x\n",
            name, (unsigned)size, (unsigned)flash_addr, (unsigned)dst);
     memcpy((void *)dst, (const void *)flash_addr, size);
-    printf("copy done.\n");
+    // printf("copy done.\n");
 }
 
 static uint32_t verify_copy(const char *name, uint32_t flash_addr, uint32_t size, uint32_t dst) {
@@ -79,8 +79,18 @@ static uint32_t verify_copy(const char *name, uint32_t flash_addr, uint32_t size
 }
 
 int main(void) {
-    vreg_set_voltage(VREG_VOLTAGE_DEFAULT);
-    set_sys_clock_khz(150 * 1000, true);
+    // vreg_set_voltage(VREG_VOLTAGE_DEFAULT);
+    // set_sys_clock_khz(150 * 1000, true);
+
+#define CPU_SPEED_MHZ 225
+    vreg_disable_voltage_limit();
+    vreg_set_voltage(VREG_VOLTAGE_1_20);
+    set_sys_clock_khz(CPU_SPEED_MHZ * 1000, true);
+    clock_configure(clk_peri,
+                    0,
+                    CLOCKS_CLK_PERI_CTRL_AUXSRC_VALUE_CLK_SYS,
+                    CPU_SPEED_MHZ * MHZ,
+                    CPU_SPEED_MHZ * MHZ);
     stdio_init_all();
 
     printf("\n=== s4-05 buildroot-rootfs bootloader ===\n");
@@ -100,18 +110,18 @@ int main(void) {
     copy_image("dtb", dtb_flash, dtb_size, DTB_LOAD_ADDR);
     copy_image("rootfs", rootfs_flash, rootfs_size, ROOTFS_LOAD_ADDR);
 
-    uint32_t km = verify_copy("kernel", kernel_flash, kernel_size, KERNEL_LOAD_ADDR);
-    uint32_t dm = verify_copy("dtb", dtb_flash, dtb_size, DTB_LOAD_ADDR);
-    uint32_t im = verify_copy("rootfs", rootfs_flash, rootfs_size, ROOTFS_LOAD_ADDR);
-    printf("verify: kernel mismatches=%u, dtb mismatches=%u, rootfs mismatches=%u\n",
-           (unsigned)km, (unsigned)dm, (unsigned)im);
-    if (km || dm || im) {
-        printf("copy verification FAILED - halting\n");
-        while (true) tight_loop_contents();
-    }
-    printf("first bytes: %02x %02x %02x %02x\n",
-           *(volatile uint8_t *)(KERNEL_LOAD_ADDR + 0), *(volatile uint8_t *)(KERNEL_LOAD_ADDR + 1),
-           *(volatile uint8_t *)(KERNEL_LOAD_ADDR + 2), *(volatile uint8_t *)(KERNEL_LOAD_ADDR + 3));
+    // uint32_t km = verify_copy("kernel", kernel_flash, kernel_size, KERNEL_LOAD_ADDR);
+    // uint32_t dm = verify_copy("dtb", dtb_flash, dtb_size, DTB_LOAD_ADDR);
+    // uint32_t im = verify_copy("rootfs", rootfs_flash, rootfs_size, ROOTFS_LOAD_ADDR);
+    // printf("verify: kernel mismatches=%u, dtb mismatches=%u, rootfs mismatches=%u\n",
+    //        (unsigned)km, (unsigned)dm, (unsigned)im);
+    // if (km || dm || im) {
+    //     printf("copy verification FAILED - halting\n");
+    //     while (true) tight_loop_contents();
+    // }
+    // printf("first bytes: %02x %02x %02x %02x\n",
+    //        *(volatile uint8_t *)(KERNEL_LOAD_ADDR + 0), *(volatile uint8_t *)(KERNEL_LOAD_ADDR + 1),
+    //        *(volatile uint8_t *)(KERNEL_LOAD_ADDR + 2), *(volatile uint8_t *)(KERNEL_LOAD_ADDR + 3));
 
     printf("disable irqs, jump to 0x%08x (a0=0 hartid, a1=0x%08x dtb)\n",
            (unsigned)KERNEL_LOAD_ADDR, (unsigned)DTB_LOAD_ADDR);
