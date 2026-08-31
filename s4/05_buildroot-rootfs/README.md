@@ -13,12 +13,12 @@
 - `BR2_UCLIBC_INSTALL_UTILS` 关：getconf（233KB）会挤爆预算；
 - `BR2_TARGET_ROOTFS_EXT2=y` + `SIZE="512k"` + `MKFS_OPTIONS="-b 1024"` + `RESBLKS=0` + `INODES=256`（默认 inode 数装不下 ~110 个文件/符号链接）；
 - `BR2_ROOTFS_OVERLAY=/home/developer/iotahydrae/rp2350-linux/s4/05_buildroot-rootfs/overlay`；
-- busybox 31 个 applet：去掉了 sed/head/cut/od/date，加了 insmod/rmmod（等 S5 内核开 CONFIG_MODULES 就能用），行编辑保持。
+- busybox 29 个 applet：去掉了 sed/head/cut/od/date、insmod/rmmod（insmod 在无 CONFIG_MODULES 内核上会段错误，S5 做模块时再一起加），行编辑保持。
 
 ## 本关范围与边界
 
 - **范围**：纯 rootfs 组装；内核不动（复用 S4-04，sha `2fbb50ab`）。
-- **延迟到 S5**：模块动态加载（内核 CONFIG_MODULES + insmod/rmmod 工作流）、rz 传文件（lrzsz 依赖动态库、NOMMU 用不了——S5 计划手写 XMODEM 接收器）、vi（体积大）。
+- **延迟到 S5**：模块动态加载（内核 CONFIG_MODULES + insmod/rmmod 工作流——注意 insmod applet 在无模块内核上会段错误，S5 一起加）、rz 传文件（lrzsz 依赖动态库、NOMMU 用不了——S5 计划手写 XMODEM 接收器）、vi（体积大）。
 - **inode 用满**（256 个，free=0）：以后要加文件，把 `EXT2_INODES` 调到 384（多占 ~32KB 数据空间，现余 108KB 够）。
 - **残留符号链接坑**：改 busybox applet 集合后，`output/target` 里旧 applet 的符号链接不会自动清（指向 busybox 会报 applet not found）——手动 `rm` 后重新 `make` 出镜像。
 
