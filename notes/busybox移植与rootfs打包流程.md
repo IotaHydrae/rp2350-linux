@@ -103,6 +103,26 @@ make flash-s4-04-rootfs    # 内核/DTB/bootloader 不变时只需重烧这一�
 - 镜像从 1MB 缩到 384KB，brd 只写 384KB，initrd 释放出来的 1MB 区域能留下 **512KB 连续块**，够 hush + 一个外部命令共存；
 - 精细裁剪留给 S5（裁剪优化）。
 
+### 为什么"8MB 只剩 2.6MB"还会分配失败（内存账本）
+
+失败那一刻（旧 566KB busybox、1MB 镜像）：
+
+| 占用 | 大小 | 说明 |
+|---|---|---|
+| 内核 Image | 2.67MB | 0x11000000 起 |
+| DTB | 64KB | 0x11700000，memblock 保留 |
+| brd（/dev/ram0 背面） | 1MB | 镜像 1MB，按 256 个 4KB 页逐页分配 |
+| hush 进程 | 600KB（吞 1MB 块） | exec 按 order-8 整块拿，浪费 400KB |
+| page cache / slab / 杂项 | ~0.6MB | 零碎 |
+| 剩余 | ~2.6MB | 碎成最大 256KB 的块 |
+
+三层原因：
+1. **连续 + 2 的幂**：600KB 请求要 1MB（order-8）块；没有就 -ENOMEM。
+2. **brd 逐页啃掉 initrd 释放区**：initrd 那 1MB 本是整块，brd 按 order-0 逐页从里面拿，buddy 眼里变成 256 个独立小页。
+3. **另一个 3MB 区被芝麻分配打洞**：/initrd.image 临时文件（ramfs 逐页）、ext2 page cache、slab 全散在里面；hush 再拿走一块 1MB。
+
+修复逻辑：裁 busybox 让 exec 只要 256KB（order-6）；镜像缩到 384KB 后 brd 只从 initrd 释放区底部拿 96 页，**上半块 512KB 保持完整**（order-7），够两个 256KB 请求切。
+
 ## 排障速查
 
 - 外部 applet 段错误 / `nommu: Allocation of length ... failed` / `page allocation failure: order:N` → 连续内存不够：裁 busybox 或缩镜像，或上 XIP（S5）。
