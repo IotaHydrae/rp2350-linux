@@ -1,0 +1,24 @@
+# RP2350 buildroot defconfig —— S5-00 工程内副本
+#
+# 真源：buildroot 仓库 configs/rp2350_nommu_defconfig（git 管理）。
+# 改 buildroot 配置（busybox applet / rootfs 格式等）后，把真源同步拷回本文件：
+#   cp /home/developer/buildroot-2026.05.2/configs/rp2350_nommu_defconfig \
+#      s5/00_ram-trim/rp2350_buildroot_defconfig
+#
+# 注意：BR2_ROOTFS_OVERLAY 是绝对路径（机器相关）；应用方式 = 在 buildroot 里
+#   make rp2350_nommu_defconfig（Makefile rootfs-s5-00 已带）。
+#
+BR2_riscv=y
+BR2_riscv_custom=y
+BR2_RISCV_ISA_RVM=y
+BR2_RISCV_ISA_RVA=y
+BR2_RISCV_ISA_RVC=y
+BR2_RISCV_32=y
+# BR2_RISCV_USE_MMU is not set
+# BR2_UCLIBC_INSTALL_UTILS is not set
+BR2_GLOBAL_PATCH_DIR="board/qemu/patches"
+BR2_DOWNLOAD_FORCE_CHECK_HASHES=y
+BR2_ROOTFS_OVERLAY="/home/developer/iotahydrae/rp2350-linux/s5/00_ram-trim/overlay"
+BR2_PACKAGE_BUSYBOX_CONFIG="package/busybox/busybox-rp2350.config"
+BR2_TARGET_ROOTFS_CPIO=y
+BR2_PACKAGE_HOST_KMOD=y

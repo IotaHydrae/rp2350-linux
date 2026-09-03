@@ -1,6 +1,8 @@
 # S5-00 · 裁剪优化①：RAM 路线轻量化
 
 > RP2350 Linux 移植 · S5 第一关：沿 RAM 加载路线把系统压轻——内核 Image、busybox、rootfs 三个尺寸一起砍，目标把并发进程上限从 2 抬到 3（`dmesg | tail -10` 不再段错误）。
+>
+> buildroot 配置的工程内副本：`rp2350_buildroot_defconfig`（真源 = buildroot 仓库 `configs/rp2350_nommu_defconfig`，改 buildroot 配置后同步拷回）。
 
 ## 本关起点（bootloader）
 
