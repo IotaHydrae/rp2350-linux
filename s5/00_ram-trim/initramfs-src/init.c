@@ -1,13 +1,16 @@
 /*
  * S5-00 rootfs /init —— busybox 启动器（PID 1）
  *
- * 行为：open /dev/ttyAMA0 → dup3 安到 0/1/2 → banner → 挂 ramfs 到 /tmp
- * （失败不阻塞）→ execve("/bin/sh", ["sh"], env)——/bin/sh 是 busybox 的
- * 符号链接，busybox 按 argv[0] 分发成 hush，PID 1 就变成 busybox hush。
+ * 行为：挂 devtmpfs 到 /dev → open /dev/ttyAMA0 → dup3 安到 0/1/2 → banner →
+ * 挂 ramfs 到 /tmp（失败不阻塞）→ execve("/bin/sh", ["sh"], env)——/bin/sh 是
+ * busybox 的符号链接，busybox 按 argv[0] 分发成 hush，PID 1 就变成 busybox hush。
  *
  * S5-00 起 rootfs 机制从 legacy initrd（ext2 on brd）切回 cpio initramfs：
  * 内核 CONFIG_BLOCK/EXT2/BLK_DEV_RAM 全关，bootloader 把 buildroot 出的
  * rootfs.cpio 拷到 0x11300000，populate_rootfs 解包成初始 rootfs。
+ * 注意：initramfs 直接当根时 prepare_namespace 被跳过 → devtmpfs 不会自动挂，
+ * /dev/ttyAMA0 不存在 —— 必须先挂 devtmpfs（S4-05 的 /init 是 legacy initrd 版，
+ * 那时 prepare_namespace 会跑、devtmpfs 自动挂，所以没有这一步；切回 cpio 要加回）。
  * 这里只负责把 stdio、可写 /tmp、/proc、/sys 准备好，然后把控制权交给 hush。
  *
  * 无 libc：NOMMU 内核只有 FLAT 格式，bFLT 由 scripts/pack-bflt.sh 手搓；
@@ -70,6 +73,8 @@ static inline long do_execve(const char *path, const char **argv, const char **e
 }
 
 static const char banner[] = "S5-00 ram-trim\n";
+static const char devtmpfs[] = "devtmpfs";
+static const char dev_dir[] = "/dev";
 static const char tty_path[] = "/dev/ttyAMA0";
 static const char sh_path[] = "/bin/sh";
 
@@ -80,9 +85,12 @@ __attribute__((section(".text.start"))) void _start(void)
 	const char *envp[3];
 	int fd;
 
+	/* prepare_namespace 被跳过 → devtmpfs 没挂，先挂上让 /dev/ttyAMA0 出现 */
+	do_mkdirat(dev_dir, 0555);
+	do_mount(devtmpfs, dev_dir, devtmpfs);
 	fd = do_openat(tty_path, 2);	/* O_RDWR */
 	if (fd < 0) {
-		/* 初始 rootfs 没有 /dev/console，内核没建 0/1/2，写哪里都白搭，只能干等 */
+		/* open 失败 = /dev/ttyAMA0 没出现（devtmpfs 没挂或串口没 probe），只能干等 */
 		for (;;) {
 			__asm__ __volatile__("" ::: "memory");
 		}
