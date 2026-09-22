@@ -27,7 +27,6 @@ bootloader = s4-05 版 + **225MHz 超频**（用户 2026-08-31 手工改）：
 ## 已知边界 / 风险
 
 - **225MHz flash/PSRAM 时序**：bootloader 从 flash XIP 跑、copy 走 QMI 写 PSRAM，超频后可能出错；校验会抓，失败即 halt。
-- **遗留小事**：overlay `/init` 的 banner 还是 "S4-04 busybox"（S4-05 遗留），本关重出 rootfs 时顺手改掉。
 - 并发上限 2 的完整账本见学习地图 ⑲。
 
 ## 如何复现（BOOTSEL 模式）
@@ -35,7 +34,7 @@ bootloader = s4-05 版 + **225MHz 超频**（用户 2026-08-31 手工改）：
 ```sh
 make flash-s5-00-bootloader
 # 拔线 → 按住 BOOTSEL 重新插线
-make flash-s5-00-kernel     # 暂复用 S4-04 内核（sha 2fbb50ab）
+make flash-s5-00-kernel     # 本关重编内核（砍 8250/virtio/BLOCK 层）
 make flash-s5-00-dtb
 make flash-s5-00-rootfs     # buildroot rootfs.cpio（315KB initramfs）
 ```
@@ -44,5 +43,7 @@ make flash-s5-00-rootfs     # buildroot rootfs.cpio（315KB initramfs）
 
 ## 当前状态
 
-- 🔄 开工：bootloader 已搭（225MHz 起点），待真机验证超频启动；
-- ⬜ 裁剪刀①内核 config；⬜ 刀②busybox；⬜ 刀③rootfs 镜像；⬜ 验收（并发 2→3）。
+- ✅ 裁剪刀①内核 config 瘦身：Image 2.67MB → **2.40MB**（2,511,040 B），Image.gz 1,226,040 B；已真机启动到 hush。
+- ✅ rootfs 机制切换：buildroot 出 cpio initramfs（315KB），实测解包、挂载、进 shell 正常；途中两个坑已修（cpio 尾随 0xFF 误报、`/init` 忘挂 devtmpfs）。
+- ⬜ 刀②busybox 精细裁剪（先别动，待定 applet 集合）；⬜ 刀③rootfs 镜像再缩。
+- ⬜ 验收（并发 2→3）：实测 buddyinfo `4 3 3 2 4 2 0 1 2 0 0`，order 8 已有 2 个 1MB 连续块、order 7 一个 512KB，MemFree ~3.1MB——理论上够 3 进程，`dmesg | tail -10` 的三进程实测还没做。
